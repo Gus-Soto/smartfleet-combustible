@@ -1,1137 +1,1858 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control de Combustible 3A</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartFleet 3A — Inteligencia de Consumo de Combustible (Horas)</title>
+  
+  <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
   <style>
-    /* Tokens. Sin rojo en ninguna parte: alertas en ámbar, KPI en verde oscuro (375623). */
     :root {
-      color-scheme: dark;
-      --bg: #0c111b;
-      --surface: #141b27;
-      --surface-2: #1b2433;
-      --border: #263043;
-      --text: #f3f5f8;
-      --text-2: #b4bccb;
-      --text-3: #7e889a;
-      --brand: #375623;
-      --brand-soft: rgba(55, 86, 35, 0.35);
-      --good: #4caf50;
-      --warn: #FFD966;
-      --warn-soft: rgba(255, 217, 102, 0.14);
-      --series: #3987e5;
-      --series-muted: #2a3a55;
-      --series-2: #199e70;
-      --grid: rgba(255, 255, 255, 0.06);
-      --focus: #86b6ef;
+      --bg-darkest: #070a12;
+      --bg-main: #0c111d;
+      --bg-surface: #121826;
+      --bg-surface-elevated: #182236;
+      --bg-card: rgba(23, 32, 51, 0.82);
+      --bg-card-hover: rgba(30, 42, 68, 0.95);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(59, 130, 246, 0.5);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --color-period-a: #3b82f6; /* Azul Eléctrico */
+      --color-period-b: #8b5cf6; /* Púrpura */
+      --color-normal: #10b981;   /* Esmeralda */
+      --color-alerta: #f59e0b;   /* Ámbar */
+      --color-critico: #ef4444;  /* Rojo */
+
+      --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
+      --shadow-lg: 0 16px 36px -6px rgba(0, 0, 0, 0.7);
+      
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
     }
-    :root[data-theme="light"] {
-      color-scheme: light;
-      --bg: #f4f5f2;
-      --surface: #ffffff;
-      --surface-2: #f2f4ef;
-      --border: #dde1d8;
-      --text: #121512;
-      --text-2: #4a5049;
-      --text-3: #6f766d;
-      --brand: #375623;
-      --brand-soft: rgba(55, 86, 35, 0.12);
-      --good: #2f7d32;
-      --warn: #8a6400;
-      --warn-soft: rgba(255, 217, 102, 0.35);
-      --series: #2a78d6;
-      --series-muted: #c6d6ea;
-      --series-2: #1b8f66;
-      --grid: rgba(0, 0, 0, 0.07);
-      --focus: #2a78d6;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font: 14px/1.45 Inter, system-ui, -apple-system, sans-serif;
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    button, select, input { font: inherit; color: inherit; }
-    .wrap { max-width: 1440px; margin: 0 auto; padding: 0 24px; }
-    .num { font-variant-numeric: tabular-nums; }
 
-    /* Encabezado */
-    header { border-bottom: 1px solid var(--border); background: var(--surface); }
-    .head-row { display: flex; align-items: center; gap: 16px; padding-top: 14px; padding-bottom: 14px; flex-wrap: wrap; }
-    .logo { width: 38px; height: 38px; border-radius: 9px; background: var(--brand); color: #fff;
-      display: grid; place-items: center; font-weight: 700; font-size: 15px; flex: none; }
-    .title h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-    .title p { margin: 2px 0 0; color: var(--text-3); font-size: 12.5px; }
-    .head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .sync { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2);
-      border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; background: var(--surface-2); }
-    .sync .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
-    .sync.stale .dot { background: var(--warn); }
-    .icon-btn { border: 1px solid var(--border); background: var(--surface-2); border-radius: 8px;
-      padding: 6px 10px; cursor: pointer; font-size: 12.5px; color: var(--text-2); }
-    .icon-btn:hover { color: var(--text); }
+    body, html {
+      width: 100%;
+      min-height: 100vh;
+      background: var(--bg-darkest);
+      color: var(--text-main);
+      overflow-x: hidden;
+    }
 
-    /* Barra de filtros */
-    .filters { position: sticky; top: 0; z-index: 20; background: var(--bg);
-      border-bottom: 1px solid var(--border); }
-    .filter-row { display: flex; align-items: center; gap: 10px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; }
-    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
-    .seg button { border: 0; background: transparent; padding: 7px 12px; cursor: pointer; color: var(--text-2); font-weight: 500; }
-    .seg button + button { border-left: 1px solid var(--border); }
-    .seg button.on { background: var(--brand); color: #fff; }
-    .field { display: inline-flex; align-items: center; gap: 6px; }
-    .field label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); font-weight: 600; }
-    select, input[type="search"] { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-      padding: 7px 10px; min-width: 120px; max-width: 220px; }
-    select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-    .spacer { flex: 1; }
-    .link-btn { background: none; border: 0; color: var(--text-2); cursor: pointer; text-decoration: underline; padding: 4px; }
-    .compare-note { font-size: 12.5px; color: var(--text-3); }
+    /* Container */
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      min-height: 100vh;
+    }
 
-    /* Pestañas */
-    nav.tabs { display: flex; gap: 4px; padding-top: 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
-    nav.tabs button { border: 0; background: none; padding: 10px 14px; cursor: pointer; color: var(--text-3);
-      font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; }
-    nav.tabs button.on { color: var(--text); border-bottom-color: var(--brand); }
-    :root:not([data-theme="light"]) nav.tabs button.on { border-bottom-color: #6c9a4b; }
+    /* Top Header */
+    header {
+      background: rgba(18, 24, 38, 0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
 
-    .notice { display: flex; gap: 10px; align-items: flex-start; background: var(--warn-soft);
-      border: 1px solid rgba(255, 217, 102, 0.4); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
-    .notice b { color: var(--warn); }
-    :root[data-theme="light"] .notice b { color: var(--text); }
+    .header-branding {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
 
-    /* KPI */
-    .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-    .kpi { background: var(--surface); border: 1px solid var(--border); border-top: 4px solid var(--brand);
-      border-radius: 12px; padding: 16px 18px; }
-    .kpi .lbl { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); font-weight: 600; }
-    .kpi .val { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 6px 0 2px; }
-    .kpi .val small { font-size: 14px; font-weight: 500; color: var(--text-3); margin-left: 4px; }
-    .kpi .sub { font-size: 12.5px; color: var(--text-2); }
-    .kpi .delta { margin-top: 8px; font-size: 12.5px; color: var(--text-3); }
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+    }
 
-    .delta-good { color: var(--good); font-weight: 600; }
-    .delta-warn { color: var(--warn); font-weight: 600; }
-    .delta-neutral { color: var(--text-2); font-weight: 600; }
+    .brand-text h1 {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-    /* Paneles */
-    .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
-    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
-    .panel + .panel { margin-top: 0; }
-    .panel.full { margin-bottom: 14px; }
-    .panel h2 { margin: 0; font-size: 15px; font-weight: 700; }
-    .panel .desc { margin: 2px 0 12px; color: var(--text-3); font-size: 12.5px; }
-    .panel-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-    .panel-head .tools { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .chart-box { position: relative; height: 240px; }
-    .chart-box.short { height: 200px; }
-    .headline { font-size: 13.5px; color: var(--text-2); margin: -4px 0 10px; }
-    .headline b { color: var(--text); }
+    .badge-tag {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+    }
 
-    /* Filas con barra de participación */
-    .rank-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 70px 84px; gap: 10px;
-      align-items: center; padding: 8px 6px; border-radius: 8px; cursor: pointer; }
-    .rank-row:hover { background: var(--surface-2); }
-    .rank-row.active { background: var(--brand-soft); }
-    .rank-row.head { cursor: default; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); font-weight: 600; }
-    .rank-row.head:hover { background: none; }
-    .rank-row .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
-    .rank-row .name small { color: var(--text-3); font-weight: 400; }
-    .bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; position: relative; }
-    .bar > i { position: absolute; inset: 0 auto 0 0; background: var(--series); border-radius: 4px; }
-    .bar-lbl { font-size: 12px; color: var(--text-2); margin-top: 3px; }
-    .r { text-align: right; }
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
 
-    /* Tablas */
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3);
-      font-weight: 600; padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface); }
-    td { padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-    tbody tr.click { cursor: pointer; }
-    tbody tr.click:hover td { background: var(--surface-2); }
-    td.r, th.r { text-align: right; }
-    td .muted, .muted { color: var(--text-3); }
-    .pill { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
-    .pill.warn { background: var(--warn-soft); color: var(--warn); }
-    :root[data-theme="light"] .pill.warn { color: #5c4300; }
-    .pill.good { background: rgba(76, 175, 80, 0.14); color: var(--good); }
-    .pill.neutral { background: var(--surface-2); color: var(--text-2); }
-    a { color: var(--series); }
+    /* Header Controls (Period Selector) */
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
 
-    /* Comparador */
-    .cmp { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: stretch; }
-    .cmp-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-    .cmp-card input[type="search"] { width: 100%; max-width: none; margin-bottom: 10px; font-weight: 600; }
-    .grp-head td { background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--border); }
-    .cmp-card .big { font-size: 26px; font-weight: 700; }
-    .cmp-card .row { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-2); margin-top: 4px; }
-    .cmp-mid { display: grid; place-items: center; color: var(--text-3); font-weight: 700; }
-    .verdict { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--brand-soft); font-size: 13.5px; }
-    .caveat { font-size: 12px; color: var(--text-3); margin-top: 8px; }
+    .period-compare-box {
+      display: flex;
+      align-items: center;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 4px 10px;
+      gap: 8px;
+    }
+
+    .period-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .period-select {
+      background: transparent;
+      border: none;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .period-pill-a {
+      background: rgba(59, 130, 246, 0.25);
+      border: 1px solid #3b82f6;
+      color: #93c5fd;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .period-pill-vs {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-dim);
+    }
+
+    .period-pill-b {
+      background: rgba(139, 92, 246, 0.25);
+      border: 1px solid #8b5cf6;
+      color: #c4b5fd;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .btn-sync-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-sync-live:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .spinning {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Filter Bar */
+    .filter-bar {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filter-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-right: 2px;
+    }
+
+    .filter-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .filter-chip:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .filter-chip.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    }
+
+    .filter-chip span.count {
+      opacity: 0.7;
+      font-size: 10px;
+    }
+
+    .search-box {
+      margin-left: auto;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-input {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 5px 10px 5px 30px;
+      font-size: 12px;
+      color: #ffffff;
+      outline: none;
+      width: 210px;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: #3b82f6;
+      width: 250px;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 9px;
+      font-size: 13px;
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    /* Breadcrumbs Navigation */
+    .breadcrumbs-bar {
+      padding: 8px 24px;
+      background: rgba(12, 17, 29, 0.6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .breadcrumb-trail {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    .breadcrumb-item {
+      cursor: pointer;
+      color: #60a5fa;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .breadcrumb-item:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb-sep {
+      color: var(--text-dim);
+    }
+
+    .breadcrumb-active {
+      color: var(--text-main);
+      font-weight: 700;
+      cursor: default;
+    }
+
+    .btn-reset-drilldown {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+    }
+
+    .btn-reset-drilldown.visible {
+      display: block;
+    }
+
+    /* Main Dashboard Layout */
+    main {
+      padding: 20px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 1800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Executive KPIs Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--kpi-accent, #3b82f6);
+    }
+
+    .kpi-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .kpi-icon-wrap {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+
+    .kpi-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .kpi-main-value {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #ffffff;
+    }
+
+    .kpi-unit {
+      font-size: 13px;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    .kpi-delta-tag {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: auto;
+    }
+
+    .delta-up-bad {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+
+    .delta-up-good {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .delta-down-good {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .delta-neutral {
+      background: rgba(148, 163, 184, 0.2);
+      color: #cbd5e1;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    .kpi-footer-compare {
+      font-size: 11px;
+      color: var(--text-dim);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Charts Row Layout */
+    .dashboard-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 1200px) {
+      .dashboard-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .panel-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-subtitle {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .panel-badge-action {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .chart-container-box {
+      width: 100%;
+      height: 320px;
+      position: relative;
+    }
+
+    /* Custom HTML Tooltip for Charts */
+    #custom-chart-tooltip {
+      position: absolute;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      border-radius: var(--radius-md);
+      color: #ffffff;
+      padding: 10px 14px;
+      pointer-events: none;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      transition: all 0.1s ease;
+      z-index: 1000;
+      font-size: 12px;
+      line-height: 1.4;
+      min-width: 220px;
+      display: none;
+    }
+
+    .tooltip-header {
+      font-weight: 700;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 5px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #60a5fa;
+    }
+
+    .tooltip-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .tooltip-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 3px;
+    }
+
+    .tooltip-val {
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .tooltip-val.critico {
+      color: #ef4444;
+    }
+
+    .tooltip-val.normal {
+      color: #10b981;
+    }
+
+    .tooltip-val.alerta {
+      color: #f59e0b;
+    }
+
+    .tooltip-footer-hint {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 10px;
+      color: #93c5fd;
+      font-style: italic;
+    }
+
+    /* Drilldown Audit Table Panel */
+    .table-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    table.data-table th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    table.data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    table.data-table tbody tr {
+      transition: background 0.15s ease;
+      cursor: pointer;
+    }
+
+    table.data-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .eq-code-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 700;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 3px 7px;
+      border-radius: var(--radius-sm);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .pill-critico {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .pill-alerta {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .pill-normal {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-action-audit {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      color: #93c5fd;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-action-audit:hover {
+      background: #3b82f6;
+      color: #ffffff;
+    }
 
     /* Modal */
-    .modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: none; z-index: 50; padding: 24px; overflow-y: auto; }
-    .modal-bg.open { display: block; }
-    .modal { max-width: 920px; margin: 30px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
-    .modal-head { display: flex; align-items: flex-start; gap: 12px; }
-    .modal-head h3 { margin: 0; font-size: 19px; }
-    .modal-head p { margin: 2px 0 0; color: var(--text-3); font-size: 13px; }
-    .modal-head .icon-btn { margin-left: auto; }
-    .mini-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
-    .mini-kpis div { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
-    .mini-kpis span { display: block; font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-    .mini-kpis b { font-size: 18px; }
-
-    footer { color: var(--text-3); font-size: 12px; padding: 18px 0 32px; border-top: 1px solid var(--border); margin-top: 10px; }
-    footer p { margin: 4px 0; }
-    .hidden { display: none !important; }
-    .empty { color: var(--text-3); padding: 18px 0; text-align: center; }
-
-    @media (max-width: 1100px) {
-      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .grid-3 { grid-template-columns: 1fr; }
-      .mini-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
     }
-    @media (max-width: 760px) {
-      .wrap { padding: 0 16px; }
-      .grid-2 { grid-template-columns: 1fr; }
-      .kpis { grid-template-columns: 1fr; }
-      .cmp { grid-template-columns: 1fr; }
-      .rank-row { grid-template-columns: minmax(0, 1fr) 52px 70px; }
-      .rank-row > :nth-child(4) { display: none; }
-      .filters { position: static; }
-      select { max-width: 100%; }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-dialog {
+      background: var(--bg-surface);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-lg);
+      width: 90%;
+      max-width: 650px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-header h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #ffffff;
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .modal-stat-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      text-align: center;
+    }
+
+    .modal-stat-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .modal-stat-val {
+      font-size: 16px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-top: 3px;
+    }
+
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-link-airtable {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .btn-link-airtable:hover {
+      background: #10b981;
+      color: #ffffff;
+    }
+
+    /* Toast */
+    #toast-msg {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: var(--shadow-md);
+      display: none;
+      z-index: 3000;
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="wrap head-row">
-      <div class="logo">3A</div>
-      <div class="title">
-        <h1>Control de Combustible — Maquinaria</h1>
-        <p>AgroIndustrial Tres Amigos · equipos con horómetro · cifras calculadas desde las boletas de Airtable</p>
+
+  <div id="app-container">
+    
+    <!-- Top Header -->
+    <header>
+      <div class="header-branding">
+        <div class="brand-icon">⛽</div>
+        <div class="brand-text">
+          <h1>SmartFleet 3A — Consumo de Combustible (Horas) <span class="badge-tag">Drilldown Pro</span></h1>
+          <p>Benchmarking de eficiencia por tipo de equipo, comparativa de períodos y auditoría de sobreconsumo</p>
+        </div>
       </div>
-      <div class="head-right">
-        <div class="sync" id="sync"><span class="dot"></span><span id="sync-text">Cargando datos…</span></div>
-        <button class="icon-btn" id="theme-btn" type="button">Tema claro</button>
+
+      <div class="header-controls">
+        <!-- Period Compare Selector -->
+        <div class="period-compare-box">
+          <span class="period-label">Comparar:</span>
+          <select id="period-preset-select" class="period-select">
+            <option value="sem40_vs_sem39" selected>SEM 40 vs SEM 39 (Semana anterior)</option>
+            <option value="sem39_vs_sem38">SEM 39 vs SEM 38</option>
+            <option value="sem40_vs_sem38">SEM 40 vs SEM 38 (Quincenal)</option>
+          </select>
+          <span class="period-pill-a" id="pill-period-a">SEM 40</span>
+          <span class="period-pill-vs">vs</span>
+          <span class="period-pill-b" id="pill-period-b">SEM 39</span>
+        </div>
+
+        <button class="btn-sync-live" id="btn-refresh-live" title="Consultar lecturas en vivo desde Airtable">
+          <span id="refresh-icon">🔄</span> Refrescar
+        </button>
+      </div>
+    </header>
+
+    <!-- Global Filter Bar -->
+    <div class="filter-bar">
+      <!-- Fincas Filter -->
+      <div class="filter-group" id="fincas-filter-container">
+        <span class="filter-label">Finca:</span>
+        <button class="filter-chip active" data-finca="ALL">Todas <span class="count" id="count-finca-all">(0)</span></button>
+        <button class="filter-chip" data-finca="Santa Rosa">Santa Rosa</button>
+        <button class="filter-chip" data-finca="Piedra Alegre">Piedra Alegre</button>
+        <button class="filter-chip" data-finca="Rio Cuarto">Rio Cuarto</button>
+        <button class="filter-chip" data-finca="El Parque">El Parque</button>
+      </div>
+
+      <!-- Tipo de Equipo Filter -->
+      <div class="filter-group" id="tipo-filter-container">
+        <span class="filter-label">Tipo:</span>
+        <button class="filter-chip active" data-tipo="ALL">Todos</button>
+        <button class="filter-chip" data-tipo="Tractor Agricola">🚜 Tractores</button>
+        <button class="filter-chip" data-tipo="Mini Excavadora">🏗️ Mini Excavadoras</button>
+        <button class="filter-chip" data-tipo="Excavadora">🏗️ Excavadoras</button>
+        <button class="filter-chip" data-tipo="Tractor Oruga">🚜 Orugas</button>
+        <button class="filter-chip" data-tipo="Montacarga">📦 Montacargas</button>
+        <button class="filter-chip" data-tipo="Camión">🚛 Camiones</button>
+      </div>
+
+      <!-- Desviación Semáforo Filter -->
+      <div class="filter-group" id="desv-filter-container">
+        <span class="filter-label">Desv:</span>
+        <button class="filter-chip active" data-desv="ALL">Todas</button>
+        <button class="filter-chip" data-desv="NORMAL">🟢 Normal (&lt;5%)</button>
+        <button class="filter-chip" data-desv="ALERTA">🟡 Alerta (5-10%)</button>
+        <button class="filter-chip" data-desv="CRITICO">🔴 Crítico (&gt;10%)</button>
+      </div>
+
+      <!-- Search Input -->
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" class="search-input" placeholder="Buscar equipo, modelo u operador..." />
       </div>
     </div>
-  </header>
 
-  <div class="filters">
-    <div class="wrap filter-row">
-      <div class="seg" id="gran-seg" role="group" aria-label="Tipo de período">
-        <button type="button" data-g="year">Año</button>
-        <button type="button" data-g="quarter">Trimestre</button>
-        <button type="button" data-g="month">Mes</button>
-        <button type="button" data-g="week">Semana</button>
+    <!-- Breadcrumbs Navigation -->
+    <div class="breadcrumbs-bar">
+      <div class="breadcrumb-trail" id="breadcrumb-trail">
+        <span class="breadcrumb-item" onclick="resetDrilldown()">🌐 Flota Completa</span>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-active" id="breadcrumb-current">Todos los Equipos</span>
       </div>
-      <select id="f-period" aria-label="Período"></select>
-      <div class="field"><label for="f-finca">Finca</label><select id="f-finca"></select></div>
-      <div class="field"><label for="f-tipo">Tipo</label><select id="f-tipo"></select></div>
-      <div class="field"><label for="f-marca">Marca</label><select id="f-marca"></select></div>
-      <div class="field"><label for="f-modelo">Modelo</label><select id="f-modelo"></select></div>
-      <button class="link-btn hidden" id="clear-btn" type="button">Limpiar filtros</button>
-      <span class="spacer"></span>
-      <span class="compare-note" id="compare-note"></span>
+      <button class="btn-reset-drilldown" id="btn-reset-drilldown" onclick="resetDrilldown()">
+        ✕ Salir de Drilldown
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <main>
+
+      <!-- Executive KPIs Grid -->
+      <section class="kpi-grid">
+        <!-- KPI 1: Consumo Total Diésel -->
+        <div class="kpi-card" style="--kpi-accent: #3b82f6;">
+          <div class="kpi-header">
+            <span class="kpi-title">Consumo Total Diésel</span>
+            <div class="kpi-icon-wrap">⛽</div>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-main-value" id="kpi-diesel-litros">0</span>
+            <span class="kpi-unit">Litros</span>
+            <span class="kpi-delta-tag" id="kpi-diesel-delta">+0%</span>
+          </div>
+          <div class="kpi-footer-compare">
+            <span id="kpi-diesel-period-b">Período Ant.: 0 L</span>
+            <span id="kpi-diesel-net-diff">Dif: +0 L</span>
+          </div>
+        </div>
+
+        <!-- KPI 2: Horas Trabajadas -->
+        <div class="kpi-card" style="--kpi-accent: #10b981;">
+          <div class="kpi-header">
+            <span class="kpi-title">Horas Operadas</span>
+            <div class="kpi-icon-wrap">⏱️</div>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-main-value" id="kpi-horas-total">0</span>
+            <span class="kpi-unit">Horas</span>
+            <span class="kpi-delta-tag" id="kpi-horas-delta">+0%</span>
+          </div>
+          <div class="kpi-footer-compare">
+            <span id="kpi-horas-period-b">Período Ant.: 0 hrs</span>
+            <span id="kpi-horas-net-diff">Dif: +0 hrs</span>
+          </div>
+        </div>
+
+        <!-- KPI 3: Eficiencia Media Flota -->
+        <div class="kpi-card" style="--kpi-accent: #8b5cf6;">
+          <div class="kpi-header">
+            <span class="kpi-title">Eficiencia Promedio</span>
+            <div class="kpi-icon-wrap">📊</div>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-main-value" id="kpi-lthr-promedio">0.00</span>
+            <span class="kpi-unit">Lt / Hr</span>
+            <span class="kpi-delta-tag" id="kpi-lthr-delta">+0%</span>
+          </div>
+          <div class="kpi-footer-compare">
+            <span id="kpi-lthr-period-b">Período Ant.: 0.00 Lt/Hr</span>
+            <span id="kpi-lthr-baseline">Meta Flota: ~8.20 Lt/Hr</span>
+          </div>
+        </div>
+
+        <!-- KPI 4: Sobreconsumo Crítico -->
+        <div class="kpi-card" style="--kpi-accent: #ef4444;">
+          <div class="kpi-header">
+            <span class="kpi-title">Sobreconsumo Crítico (&gt;10%)</span>
+            <div class="kpi-icon-wrap">⚠️</div>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-main-value" id="kpi-exceso-costo">$0</span>
+            <span class="kpi-unit">USD</span>
+            <span class="kpi-delta-tag delta-up-bad" id="kpi-criticos-count">0 equipos</span>
+          </div>
+          <div class="kpi-footer-compare">
+            <span id="kpi-exceso-litros">Exceso: 0 Litros</span>
+            <span id="kpi-desv-promedio">Desv. Prom: +0%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts Row 1: Nivel 1 (Comparativa Tipos de Equipo) + Nivel 2 (Scatter Plot Eficiencia) -->
+      <section class="dashboard-row">
+        
+        <!-- Nivel 1 Chart: Comparativa por Tipo de Equipo -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <h2 class="panel-title">📊 Nivel 1: Comparativa por Tipo de Equipo (Lt / Hr)</h2>
+              <p class="panel-subtitle">Contraste de eficiencia promedio entre Período A (<span style="color:#60a5fa;">■</span>) y Período B (<span style="color:#c4b5fd;">■</span>)</p>
+            </div>
+            <span class="panel-badge-action" title="Haz clic en una barra para profundizar">💡 Clic en barra para drilldown</span>
+          </div>
+          <div class="chart-container-box">
+            <canvas id="chart-types-compare"></canvas>
+          </div>
+        </div>
+
+        <!-- Nivel 2 Chart: Matriz de Dispersión y Desviación -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <h2 class="panel-title">🎯 Nivel 2: Matriz de Eficiencia por Equipo</h2>
+              <p class="panel-subtitle">Horas trabajadas (Eje X) vs. Consumo Lt/Hr (Eje Y) · Burbujas por semáforo de desviación</p>
+            </div>
+            <span class="panel-badge-action" title="Haz clic en un punto para ver sus boletas">💡 Clic en equipo para boletas</span>
+          </div>
+          <div class="chart-container-box">
+            <canvas id="chart-scatter-equipos"></canvas>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Top 5 Anomalies Ranking Banner -->
+      <div id="ranking-anomalies-container" style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- Injected via JavaScript -->
+      </div>
+
+      <!-- Nivel 3 Table: Tabla de Auditoría Detallada de Boletas -->
+      <section class="table-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2 class="panel-title">📋 Nivel 3: Registro y Auditoría de Boletas de Combustible</h2>
+            <p class="panel-subtitle" id="table-subtitle">Mostrando lecturas detalladas de combustible y horómetro</p>
+          </div>
+          <span style="font-size: 11px; color: var(--text-dim);" id="table-record-count">0 registros listados</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>N.° Boleta</th>
+                <th>Equipo</th>
+                <th>Tipo</th>
+                <th>Finca</th>
+                <th>Operador</th>
+                <th>Horas</th>
+                <th>Diesel (L)</th>
+                <th>Lt / Hr</th>
+                <th>Media Mod.</th>
+                <th>Desviación</th>
+                <th>Costo Exceso</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="table-body-logs">
+              <!-- Injected dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- Custom Floating Tooltip for Charts -->
+  <div id="custom-chart-tooltip"></div>
+
+  <!-- Modal Detalle de Equipo y Boleta -->
+  <div id="audit-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-eq-title">🚜 Ficha de Auditoría de Combustible</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-eq-body">
+        <!-- Injected dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn-action-audit" onclick="closeModal()">Cerrar</button>
+        <a id="modal-airtable-link" href="#" target="_blank" class="btn-link-airtable">Ver en Airtable ↗</a>
+      </div>
     </div>
   </div>
 
-  <main class="wrap">
-    <nav class="tabs" role="tablist">
-      <button type="button" data-tab="resumen" class="on">Resumen</button>
-      <button type="button" data-tab="equipos">Equipos y modelos</button>
-      <button type="button" data-tab="calidad">Calidad del dato</button>
-    </nav>
+  <!-- Toast -->
+  <div id="toast-msg"></div>
 
-    <div id="notices"></div>
-
-    <!-- RESUMEN -->
-    <section id="tab-resumen">
-      <div class="kpis" id="kpis"></div>
-
-      <div class="grid-2">
-        <div class="panel">
-          <h2 id="trend-title">Diésel despachado por mes</h2>
-          <p class="desc">Litros por período; resaltado el período seleccionado. Pase el cursor para ver el detalle.</p>
-          <div class="chart-box"><canvas id="ch-litros"></canvas></div>
-        </div>
-        <div class="panel">
-          <h2>Eficiencia de la flota (Lt/Hr)</h2>
-          <p class="desc">Litros ÷ horas trabajadas de las boletas con lectura válida. Más bajo es mejor.</p>
-          <div class="chart-box"><canvas id="ch-lthr"></canvas></div>
-        </div>
-      </div>
-
-      <div class="grid-3">
-        <div class="panel">
-          <h2>Por finca</h2>
-          <p class="desc">Clic para filtrar todo el tablero por esa finca.</p>
-          <div id="rank-finca"></div>
-        </div>
-        <div class="panel">
-          <h2>Por tipo de equipo</h2>
-          <p class="desc">Clic para filtrar por tipo.</p>
-          <div id="rank-tipo"></div>
-        </div>
-        <div class="panel">
-          <h2>Por labor asignada</h2>
-          <p class="desc">Labor asignada al equipo en su ficha (no por boleta).</p>
-          <div id="rank-labor"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- EQUIPOS -->
-    <section id="tab-equipos" class="hidden">
-      <div class="panel full">
-        <div class="panel-head">
-          <div>
-            <h2>Ranking de equipos</h2>
-            <p class="desc">Clic en un equipo para ver su evolución mensual y sus boletas en Airtable.</p>
-          </div>
-          <div class="tools">
-            <select id="eq-sort" aria-label="Ordenar por">
-              <option value="litros">Ordenar: litros</option>
-              <option value="exceso">Ordenar: exceso US$</option>
-              <option value="desv">Ordenar: desviación vs su media</option>
-            </select>
-            <select id="eq-limit" aria-label="Cantidad">
-              <option value="10">Top 10</option>
-              <option value="25">Top 25</option>
-              <option value="9999">Todos</option>
-            </select>
-            <input type="search" id="eq-search" placeholder="Buscar código o modelo" aria-label="Buscar equipo">
-          </div>
-        </div>
-        <div class="table-wrap"><table id="eq-table"></table></div>
-      </div>
-
-      <div class="panel full">
-        <h2>Concentración del exceso</h2>
-        <p class="desc">Exceso en US$ por equipo, de mayor a menor. Barras oscuras: los equipos que suman el 80% del exceso.</p>
-        <p class="headline" id="pareto-headline"></p>
-        <div class="chart-box"><canvas id="ch-pareto"></canvas></div>
-      </div>
-
-      <div class="panel full">
-        <h2>Comparador de modelos</h2>
-        <p class="desc">Consumo real de dos modelos en el período y filtros seleccionados.</p>
-        <div class="cmp">
-          <div class="cmp-card" id="cmp-a"></div>
-          <div class="cmp-mid">vs</div>
-          <div class="cmp-card" id="cmp-b"></div>
-        </div>
-        <datalist id="cmp-list"></datalist>
-        <div class="verdict" id="cmp-verdict"></div>
-        <p class="caveat">Los modelos pueden trabajar en labores y fincas distintas; una diferencia de consumo no se debe solo a la máquina.</p>
-      </div>
-
-      <div class="panel full">
-        <h2>Modelos de la flota</h2>
-        <p class="desc">El rango entre unidades del mismo modelo muestra cuánto consumen distinto máquinas iguales (unidades con 50 h o más en el período).</p>
-        <div class="table-wrap"><table id="mod-table"></table></div>
-      </div>
-    </section>
-
-    <!-- CALIDAD -->
-    <section id="tab-calidad" class="hidden">
-      <div class="kpis" id="q-kpis"></div>
-      <div class="grid-2">
-        <div class="panel">
-          <h2>Horómetros reportados como dañados</h2>
-          <p class="desc">Equipos con boletas marcadas "Horómetro dañado" en el período. La OTC es la de origen "Reparar horómetro" del mismo equipo más cercana al último reporte (±30 días): Airtable la vincula al equipo, no a la boleta.</p>
-          <div class="table-wrap"><table id="q-danados"></table></div>
-        </div>
-        <div class="panel">
-          <h2>Despachadores</h2>
-          <p class="desc">Persona registrada como dispensador en la boleta.</p>
-          <div class="table-wrap"><table id="q-desp"></table></div>
-        </div>
-      </div>
-      <div class="panel full">
-        <h2>Boletas para revisar</h2>
-        <p class="desc">Boletas cuyo Lt/Hr es más del triple de la media del equipo, o con más de 200 horas desde la carga anterior. Enlace directo al registro.</p>
-        <div class="table-wrap"><table id="q-atipicas"></table></div>
-      </div>
-    </section>
-
-    <footer id="footer"></footer>
-  </main>
-
-  <div class="modal-bg" id="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
-    <div class="modal">
-      <div class="modal-head">
-        <div><h3 id="m-title"></h3><p id="m-sub"></p></div>
-        <button class="icon-btn" type="button" id="m-close">Cerrar</button>
-      </div>
-      <div class="mini-kpis" id="m-kpis"></div>
-      <h2 style="font-size:14px;margin:0 0 6px;">Lt/Hr por mes vs media histórica del equipo</h2>
-      <div class="chart-box short"><canvas id="ch-equipo"></canvas></div>
-      <h2 style="font-size:14px;margin:16px 0 6px;">Últimas boletas del período</h2>
-      <div class="table-wrap"><table id="m-boletas"></table></div>
-    </div>
-  </div>
+  <!-- Embedded Real Dataset Fallback -->
+  <script src="data.json" type="application/json" id="raw-data-json"></script>
 
   <script>
-  'use strict';
+    // Global Application State
+    let ALL_RECORDS = [];
+    let periodA = 'SEM 40';
+    let periodB = 'SEM 39';
+    let selectedFinca = 'ALL';
+    let selectedTipo = 'ALL';
+    let selectedDesv = 'ALL';
+    let searchQuery = '';
+    let drilldownEquipment = null;
 
-  // ---------- Estado ----------
-  const S = {
-    data: null, gran: 'month', periodKey: null, tab: 'resumen',
-    f: { finca: '', tipo: '', marca: '', modelo: '' },
-    eqSort: 'litros', eqLimit: 10, eqSearch: '',
-    cmpA: null, cmpB: null, charts: {}, partialMonths: new Set()
-  };
-  const ERR = 1, DANADO = 2, OTC = 4;
-  const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  const MES_L = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    // Charts instances
+    let chartTypes = null;
+    let chartScatter = null;
 
-  // ---------- Utilidades ----------
-  const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmt = (n, d = 0) => (n == null || !isFinite(n)) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-  const usd = n => (n == null || !isFinite(n)) ? '—' : 'US$' + fmt(n);
-  const ratio = (a, b) => b > 0 ? a / b : null;
-  const pct = (a, b) => (a == null || b == null || b === 0) ? null : (a / b - 1) * 100;
-  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-
-  // Fechas como 'YYYY-MM-DD' en UTC para no depender de la zona horaria del navegador.
-  const toD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
-  const toS = d => d.toISOString().slice(0, 10);
-  const addDays = (s, n) => { const d = toD(s); d.setUTCDate(d.getUTCDate() + n); return toS(d); };
-  const daysBetween = (a, b) => Math.round((toD(b) - toD(a)) / 864e5);
-  const minS = (a, b) => a < b ? a : b;
-  const fmtDay = s => { const d = toD(s); return `${d.getUTCDate()} ${MES[d.getUTCMonth()]}`; };
-  const fmtDayY = s => { const d = toD(s); return `${d.getUTCDate()} ${MES[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
-
-  // Igual que WEEKNUM() de Airtable: semanas de domingo a sábado, la semana 1 contiene el 1 de enero.
-  function weekOf(s) {
-    const d = toD(s), y = d.getUTCFullYear(), jan1 = new Date(Date.UTC(y, 0, 1));
-    const doy = Math.round((d - jan1) / 864e5);
-    return { y, n: Math.floor((doy + jan1.getUTCDay()) / 7) + 1 };
-  }
-
-  function periodOf(g, s) {
-    const d = toD(s), y = d.getUTCFullYear(), m = d.getUTCMonth();
-    if (g === 'year') return { key: `${y}`, label: `Año ${y}`, short: `${y}`, start: `${y}-01-01`, end: `${y}-12-31` };
-    if (g === 'quarter') {
-      const q = Math.floor(m / 3);
-      const end = toS(new Date(Date.UTC(y, q * 3 + 3, 0)));
-      return { key: `${y}-Q${q + 1}`, label: `T${q + 1} ${y} (${MES[q * 3]}–${MES[q * 3 + 2]})`, short: `T${q + 1} ${y}`, start: toS(new Date(Date.UTC(y, q * 3, 1))), end };
-    }
-    if (g === 'month') {
-      const mm = String(m + 1).padStart(2, '0');
-      return { key: `${y}-${mm}`, label: `${MES_L[m]} ${y}`, short: `${MES[m]} ${y}`, start: `${y}-${mm}-01`, end: toS(new Date(Date.UTC(y, m + 1, 0))) };
-    }
-    const w = weekOf(s);
-    let start = addDays(s, -d.getUTCDay()), end = addDays(start, 6);
-    if (start < `${y}-01-01`) start = `${y}-01-01`;
-    if (end > `${y}-12-31`) end = `${y}-12-31`;
-    return { key: `${y}-W${w.n}`, label: `SEM ${w.n} · ${fmtDay(start)} – ${fmtDayY(end)}`, short: `SEM ${w.n}`, start, end };
-  }
-
-  // Período seleccionado + período comparable (mismo largo; si el actual va en curso, mismos días transcurridos).
-  function currentPeriods() {
-    const D = S.data, last = D.metadata.fechaMax, firstData = D.metadata.fechaMin;
-    const cur = periodOf(S.gran, S.periodKeyDate);
-    cur.effEnd = minS(cur.end, last);
-    cur.inProgress = cur.end > last;
-    const prev = periodOf(S.gran, addDays(cur.start, -1));
-    const elapsed = daysBetween(cur.start, cur.effEnd);
-    prev.effEnd = cur.inProgress ? minS(prev.end, addDays(prev.start, elapsed)) : prev.end;
-    // La comparación solo vale si el período anterior tiene cobertura completa del registro.
-    prev.noData = prev.effEnd < firstData;
-    prev.partial = !prev.noData && monthsIn(prev.start, prev.effEnd).some(k => S.partialMonths.has(k) || k < firstData.slice(0, 7));
-    cur.partial = monthsIn(cur.start, cur.effEnd).some(k => S.partialMonths.has(k));
-    return { cur, prev };
-  }
-  function monthsIn(a, b) {
-    const out = []; let y = +a.slice(0, 4), m = +a.slice(5, 7);
-    const yb = +b.slice(0, 4), mb = +b.slice(5, 7);
-    while (y < yb || (y === yb && m <= mb)) { out.push(`${y}-${String(m).padStart(2, '0')}`); m++; if (m > 12) { m = 1; y++; } }
-    return out;
-  }
-
-  // ---------- Motor de agregación ----------
-  function dimMatch(r) {
-    const e = S.data.equipos[r[1]], f = S.f;
-    if (f.finca !== '' && S.data.fincas[r[2]] !== f.finca) return false;
-    if (f.tipo && e.tipo !== f.tipo) return false;
-    if (f.marca && e.marca !== f.marca) return false;
-    if (f.modelo && e.modelo !== f.modelo) return false;
-    return true;
-  }
-  function rowsIn(start, end, extraDims = true) {
-    return S.data.rows.filter(r => r[0] >= start && r[0] <= end && (!extraDims || dimMatch(r)));
-  }
-  function newAcc() { return { L: 0, Lv: 0, Hv: 0, ex: 0, n: 0, nErr: 0, nDan: 0, nSinH: 0, eq: new Set() }; }
-  function add(a, r) {
-    const valid = !(r[7] & ERR) && r[5] > 0;
-    a.L += r[4]; a.ex += r[6]; a.n++;
-    if (valid) { a.Lv += r[4]; a.Hv += r[5]; }
-    if (r[7] & ERR) a.nErr++;
-    if (r[7] & DANADO) a.nDan++;
-    if (!(r[7] & ERR) && r[5] <= 0) a.nSinH++;
-    a.eq.add(r[1]);
-    return a;
-  }
-  function total(rows) { const a = newAcc(); rows.forEach(r => add(a, r)); return a; }
-  function groupBy(rows, keyFn) {
-    const m = new Map();
-    for (const r of rows) { const k = keyFn(r); if (!m.has(k)) m.set(k, newAcc()); add(m.get(k), r); }
-    return m;
-  }
-  const lthr = a => ratio(a.Lv, a.Hv);
-  const price = () => S.data.params.precioDieselCRC / S.data.params.tipoCambio;
-
-  // Enlace al detalle del registro dentro de la interfaz (no a la tabla).
-  function detailUrl(kind, recId) {
-    const p = S.data.params, l = p.links && p.links[kind];
-    if (!l || !recId) return null;
-    const payload = btoa(JSON.stringify({ pageId: l.detail, rowId: recId, showComments: false, queryOriginHint: null }));
-    return `${p.airtableBase}${l.page}?detail=${encodeURIComponent(payload)}`;
-  }
-  const linkHtml = (kind, recId, text) => {
-    const u = detailUrl(kind, recId);
-    return u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${text}</a>` : '';
-  };
-
-  // ---------- Carga ----------
-  // Publicado (GitHub Pages): datos desde el webhook de n8n "SmartFleet 3A - Datos de Combustible",
-  // que los refresca de Airtable cada 3 h. En local: el archivo que genera sync_data.mjs.
-  // ?fuente=n8n o ?fuente=local fuerza una u otra.
-  const WEBHOOK_URL = 'https://gus-n8n-n8n.wzzhl1.easypanel.host/webhook/smartfleet-combustible';
-  const isLocalHost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
-  const fuente = new URLSearchParams(location.search).get('fuente');
-  const DATA_URL = fuente === 'n8n' ? WEBHOOK_URL : fuente === 'local' ? 'executive_data.json' : (isLocalHost ? 'executive_data.json' : WEBHOOK_URL);
-  async function load(initial) {
-    try {
-      const res = await fetch(DATA_URL + (DATA_URL.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (!data.rows) throw new Error('Formato de datos antiguo: correr sync_data.mjs');
-      if (!initial && S.data && data.metadata.generatedAt === S.data.metadata.generatedAt) { renderSync(); return; }
-      S.data = data;
-      computePartialMonths();
-      if (initial) pickDefaultPeriod();
-      fillFilterOptions();
-      renderAll();
-    } catch (err) {
-      console.error(err);
-      $('sync-text').textContent = 'No se pudo cargar executive_data.json (' + err.message + ')';
-      $('sync').classList.add('stale');
-    }
-  }
-
-  // Un mes es de cobertura parcial si tiene menos del 40% de las boletas de un mes típico (arranque del registro).
-  function computePartialMonths() {
-    const c = {};
-    S.data.rows.forEach(r => { const k = r[0].slice(0, 7); c[k] = (c[k] || 0) + 1; });
-    const last = S.data.metadata.fechaMax.slice(0, 7);
-    const full = Object.entries(c).filter(([k]) => k !== last).map(([, v]) => v).sort((a, b) => a - b);
-    const median = full.length ? full[Math.floor(full.length / 2)] : 0;
-    S.partialMonths = new Set(Object.entries(c).filter(([k, v]) => k !== last && v < median * 0.4).map(([k]) => k));
-    S.monthCounts = c;
-  }
-
-  // Por defecto: el último mes cerrado (el mes en curso suele tener pocos días).
-  function pickDefaultPeriod() {
-    const last = S.data.metadata.fechaMax;
-    const lastMonth = periodOf('month', last);
-    S.periodKeyDate = lastMonth.end > last ? addDays(lastMonth.start, -1) : last;
-    S.gran = 'month';
-  }
-
-  function periodOptions(g) {
-    const seen = new Map();
-    for (const r of S.data.rows) { const p = periodOf(g, r[0]); if (!seen.has(p.key)) seen.set(p.key, { ...p, anchor: r[0] }); }
-    return [...seen.values()].sort((a, b) => b.start.localeCompare(a.start));
-  }
-
-  function fillFilterOptions() {
-    const D = S.data, last = D.metadata.fechaMax;
-    const opts = periodOptions(S.gran);
-    const curKey = periodOf(S.gran, S.periodKeyDate).key;
-    if (!opts.some(o => o.key === curKey)) S.periodKeyDate = opts[0].anchor;
-    $('f-period').innerHTML = opts.map(o => {
-      const tags = [];
-      if (o.end > last) tags.push('en curso');
-      if (monthsIn(o.start, minS(o.end, last)).every(k => S.partialMonths.has(k))) tags.push('arranque');
-      return `<option value="${esc(o.anchor)}" ${o.key === curKey ? 'selected' : ''}>${esc(o.label)}${tags.length ? ' · ' + tags.join(', ') : ''}</option>`;
-    }).join('');
-
-    // Listas en cascada: cada filtro muestra solo valores compatibles con los demás.
-    const eqs = D.equipos;
-    const usedEq = new Set(D.rows.filter(r => S.f.finca === '' || D.fincas[r[2]] === S.f.finca).map(r => r[1]));
-    const pool = [...usedEq].map(i => eqs[i]);
-    const uniq = (arr) => [...new Set(arr)].sort((a, b) => a.localeCompare(b, 'es'));
-    const tipos = uniq(pool.filter(e => (!S.f.marca || e.marca === S.f.marca) && (!S.f.modelo || e.modelo === S.f.modelo)).map(e => e.tipo));
-    const marcas = uniq(pool.filter(e => (!S.f.tipo || e.tipo === S.f.tipo) && (!S.f.modelo || e.modelo === S.f.modelo)).map(e => e.marca));
-    const modelos = uniq(pool.filter(e => (!S.f.tipo || e.tipo === S.f.tipo) && (!S.f.marca || e.marca === S.f.marca)).map(e => e.modelo));
-    const fincas = uniq(D.fincas);
-    const fill = (id, list, val, all) => {
-      $(id).innerHTML = `<option value="">${all}</option>` + list.map(v => `<option ${v === val ? 'selected' : ''}>${esc(v)}</option>`).join('');
-    };
-    fill('f-finca', fincas, S.f.finca, 'Todas');
-    fill('f-tipo', tipos, S.f.tipo, 'Todos');
-    fill('f-marca', marcas, S.f.marca, 'Todas');
-    fill('f-modelo', modelos, S.f.modelo, 'Todos');
-    document.querySelectorAll('#gran-seg button').forEach(b => b.classList.toggle('on', b.dataset.g === S.gran));
-    $('clear-btn').classList.toggle('hidden', !Object.values(S.f).some(Boolean));
-  }
-
-  // ---------- Render ----------
-  function renderAll() {
-    renderSync();
-    const P = currentPeriods();
-    S.P = P;
-    S.curRows = rowsIn(P.cur.start, P.cur.effEnd);
-    S.prevRows = P.prev.noData ? [] : rowsIn(P.prev.start, P.prev.effEnd);
-    renderCompareNote(P);
-    renderNotices(P);
-    if (S.tab === 'resumen') renderResumen(P);
-    if (S.tab === 'equipos') renderEquipos(P);
-    if (S.tab === 'calidad') renderCalidad(P);
-    renderFooter();
-  }
-
-  function renderSync() {
-    const md = S.data.metadata;
-    const gen = new Date(md.generatedAt);
-    const mins = Math.round((Date.now() - gen) / 60000);
-    const ago = mins < 60 ? `hace ${mins} min` : mins < 48 * 60 ? `hace ${Math.round(mins / 60)} h` : `hace ${Math.round(mins / 1440)} días`;
-    const stale = mins > 4 * 60;
-    $('sync').classList.toggle('stale', stale);
-    $('sync-text').innerHTML = `Boletas hasta el <b>${esc(fmtDayY(md.fechaMax))}</b> · sincronizado ${ago}${stale ? ' (atrasado)' : ''}`;
-    $('sync').title = `Última sincronización: ${gen.toLocaleString('es-CR', { timeZone: 'America/Costa_Rica' })}`;
-  }
-
-  function rangeLabel(p) {
-    if (p.effEnd === p.end && !p.inProgress) return p.short;
-    return `${fmtDay(p.start)} – ${fmtDay(p.effEnd)}`;
-  }
-  function renderCompareNote(P) {
-    if (P.prev.noData) { $('compare-note').textContent = `${rangeLabel(P.cur)} · sin período anterior con datos`; return; }
-    $('compare-note').textContent = `Comparando ${rangeLabel(P.cur)} vs ${rangeLabel(P.prev)}${P.prev.partial ? ' (base parcial)' : ''}`;
-  }
-
-  function renderNotices(P) {
-    const n = [];
-    if (P.cur.inProgress) n.push(`<b>Período en curso.</b> Hay boletas hasta el ${fmtDayY(S.data.metadata.fechaMax)}${P.prev.noData ? '' : '; la comparación usa los mismos días del período anterior'}.`);
-    if (P.cur.partial) n.push(`<b>Cobertura parcial.</b> Incluye meses de arranque del registro (${monthsIn(P.cur.start, P.cur.effEnd).filter(k => S.partialMonths.has(k)).map(k => MES[+k.slice(5) - 1] + ' ' + k.slice(0, 4)).join(', ')}) con muy pocas boletas; los totales de esos meses no representan la operación completa.`);
-    else if (!P.prev.noData && P.prev.partial) n.push(`<b>Base de comparación parcial.</b> El período anterior cae en el arranque del registro; no se muestran variaciones de volumen.`);
-    $('notices').innerHTML = n.map(t => `<div class="notice"><span aria-hidden="true">!</span><div>${t}</div></div>`).join('');
-  }
-
-  // Variación: volumen = neutro; Lt/Hr y exceso: subir = ámbar (empeora), bajar = verde (mejora).
-  function deltaHtml(cur, prev, kind, vsLabel) {
-    const P = S.P;
-    if (P.prev.noData) return `<span class="muted">Sin período anterior con datos</span>`;
-    if (P.prev.partial && kind !== 'ratio') return `<span class="muted">Base anterior parcial</span>`;
-    const d = pct(cur, prev);
-    if (d == null) return `<span class="muted">Sin base de comparación</span>`;
-    const up = d > 0, arrow = Math.abs(d) < 0.05 ? '=' : up ? '▲' : '▼';
-    let cls = 'delta-neutral', word = '';
-    if (kind !== 'volume' && Math.abs(d) >= 0.05) { cls = up ? 'delta-warn' : 'delta-good'; word = up ? ' empeora' : ' mejora'; }
-    return `<span class="${cls}">${arrow} ${fmt(Math.abs(d), 1)}%${word}</span> vs ${esc(vsLabel)}`;
-  }
-
-  function renderResumen(P) {
-    const c = total(S.curRows), p = total(S.prevRows), pr = price();
-    const vs = rangeLabel(P.prev);
-    const k = [
-      { lbl: 'Diésel despachado', val: fmt(c.L), unit: 'L', sub: `${fmt(c.n)} boletas · ${fmt(c.eq.size)} equipos`, d: deltaHtml(c.L, p.L, 'volume', vs) },
-      { lbl: 'Costo del diésel', val: usd(c.L * pr), unit: '', sub: `A ₡${fmt(S.data.params.precioDieselCRC)}/L y TC ₡${fmt(S.data.params.tipoCambio)}`, d: deltaHtml(c.L, p.L, 'volume', vs) },
-      { lbl: 'Eficiencia', val: fmt(lthr(c), 2), unit: 'Lt/Hr', sub: `${fmt(c.Hv)} horas trabajadas válidas`, d: deltaHtml(lthr(c), lthr(p), 'ratio', vs) },
-      { lbl: 'Exceso sobre media histórica', val: usd(c.ex * pr), unit: '', sub: `${fmt(c.ex)} L en boletas con desviación >10%`, d: deltaHtml(c.ex, p.ex, 'cost', vs) }
-    ];
-    $('kpis').innerHTML = k.map(x => `
-      <div class="kpi">
-        <div class="lbl">${x.lbl}</div>
-        <div class="val num">${x.val}${x.unit ? `<small>${x.unit}</small>` : ''}</div>
-        <div class="sub">${x.sub}</div>
-        <div class="delta">${x.d}</div>
-      </div>`).join('');
-
-    renderTrend(P);
-    renderRank('rank-finca', r => S.data.fincas[r[2]], 'finca');
-    renderRank('rank-tipo', r => S.data.equipos[r[1]].tipo, 'tipo');
-    renderRank('rank-labor', r => S.data.equipos[r[1]].labor, null);
-  }
-
-  function renderRank(el, keyFn, filterKey) {
-    const cur = groupBy(S.curRows, keyFn), prev = groupBy(S.prevRows, keyFn);
-    const totalL = [...cur.values()].reduce((s, a) => s + a.L, 0);
-    const items = [...cur.entries()].sort((a, b) => b[1].L - a[1].L);
-    if (!items.length) { $(el).innerHTML = '<div class="empty">Sin boletas en este período</div>'; return; }
-    const maxL = items[0][1].L;
-    const html = [`<div class="rank-row head"><div>Nombre · litros</div><div class="r">Lt/Hr</div><div class="r">Lt/Hr vs ant.</div><div class="r">Exceso</div></div>`];
-    for (const [name, a] of items) {
-      const p = prev.get(name);
-      const d = p && !S.P.prev.noData ? pct(lthr(a), lthr(p)) : null;
-      const dh = d == null ? '<span class="muted">—</span>' :
-        `<span class="${Math.abs(d) < 0.05 ? 'delta-neutral' : d > 0 ? 'delta-warn' : 'delta-good'}">${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${fmt(Math.abs(d), 1)}%</span>`;
-      const active = filterKey && S.f[filterKey] === name;
-      html.push(`<div class="rank-row ${active ? 'active' : ''}" ${filterKey ? `data-fk="${filterKey}" data-fv="${esc(name)}" role="button" tabindex="0"` : 'style="cursor:default"'}
-          title="${esc(name)}: ${fmt(a.L)} L · ${fmt(a.Hv)} h · ${fmt(a.eq.size)} equipos">
-        <div><div class="name">${esc(name)} <small>${fmt(a.eq.size)} equipos</small></div>
-          <div class="bar"><i style="width:${(a.L / maxL * 100).toFixed(1)}%"></i></div>
-          <div class="bar-lbl num">${fmt(a.L)} L · ${fmt(a.L / totalL * 100, 1)}%</div></div>
-        <div class="r num">${fmt(lthr(a), 2)}</div>
-        <div class="r num">${dh}</div>
-        <div class="r num">${usd(a.ex * price())}</div>
-      </div>`);
-    }
-    $(el).innerHTML = html.join('');
-  }
-
-  function chartDefaults() {
-    Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
-    Chart.defaults.font.size = 12;
-    Chart.defaults.color = css('--text-3');
-    Chart.defaults.borderColor = css('--grid');
-    Chart.defaults.plugins.tooltip.backgroundColor = css('--surface-2');
-    Chart.defaults.plugins.tooltip.titleColor = css('--text');
-    Chart.defaults.plugins.tooltip.bodyColor = css('--text-2');
-    Chart.defaults.plugins.tooltip.borderColor = css('--border');
-    Chart.defaults.plugins.tooltip.borderWidth = 1;
-    Chart.defaults.plugins.tooltip.padding = 10;
-  }
-  function makeChart(id, cfg) {
-    if (S.charts[id]) S.charts[id].destroy();
-    S.charts[id] = new Chart($(id), cfg);
-    return S.charts[id];
-  }
-
-  // Serie temporal: por mes (o por semana si se eligió semana), con los filtros de dimensión aplicados.
-  function renderTrend(P) {
-    const weekly = S.gran === 'week';
-    $('trend-title').textContent = weekly ? 'Diésel despachado por semana' : 'Diésel despachado por mes';
-    const rows = S.data.rows.filter(dimMatch);
-    const g = weekly ? 'week' : 'month';
-    const buckets = new Map();
-    for (const r of rows) {
-      const p = periodOf(g, r[0]);
-      if (!buckets.has(p.key)) buckets.set(p.key, { p, a: newAcc() });
-      add(buckets.get(p.key).a, r);
-    }
-    let list = [...buckets.values()].sort((a, b) => a.p.start.localeCompare(b.p.start));
-    if (weekly) {
-      const idx = list.findIndex(b => b.p.start >= P.cur.start);
-      list = list.slice(Math.max(0, idx - 15), idx + 1);
-    }
-    const last = S.data.metadata.fechaMax;
-    const isSel = b => b.p.start <= P.cur.effEnd && b.p.end >= P.cur.start;
-    const tag = b => {
-      if (b.p.end > last) return ' (en curso)';
-      if (!weekly && S.partialMonths.has(b.p.key)) return ' (arranque)';
-      return '';
-    };
-    const labels = list.map(b => b.p.short);
-    const series = css('--series'), muted = css('--series-muted');
-    makeChart('ch-litros', {
-      type: 'bar',
-      data: { labels, datasets: [{ label: 'Litros', data: list.map(b => Math.round(b.a.L)),
-        backgroundColor: list.map(b => isSel(b) ? series : muted), borderRadius: 4, maxBarThickness: 38 }] },
-      options: {
-        maintainAspectRatio: false, animation: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: {
-          title: it => list[it[0].dataIndex].p.label + tag(list[it[0].dataIndex]),
-          label: it => { const a = list[it.dataIndex].a; return [`${fmt(a.L)} L · ${usd(a.L * price())}`, `${fmt(a.n)} boletas · ${fmt(a.eq.size)} equipos`]; } } } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: v => fmt(v / 1000) + 'k L' } } }
+    // Load initial data
+    async function loadData() {
+      try {
+        const res = await fetch('data.json');
+        if (res.ok) {
+          ALL_RECORDS = await res.json();
+          initApp();
+        } else {
+          throw new Error('No se pudo cargar data.json');
+        }
+      } catch (err) {
+        console.warn('Cargando datos fallback locales:', err);
+        showToast('⚠️ Usando datos de respaldo');
       }
-    });
-    const line = css('--series-2');
-    makeChart('ch-lthr', {
-      type: 'line',
-      data: { labels, datasets: [{ label: 'Lt/Hr', data: list.map(b => { const v = lthr(b.a); return v == null ? null : +v.toFixed(2); }),
-        borderColor: line, borderWidth: 2, tension: 0.25, spanGaps: true,
-        pointRadius: list.map(b => isSel(b) ? 6 : 3), pointBackgroundColor: list.map(b => isSel(b) ? line : css('--surface')),
-        pointBorderColor: line, pointBorderWidth: 2, pointHitRadius: 14 }] },
-      options: {
-        maintainAspectRatio: false, animation: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: false }, tooltip: { callbacks: {
-          title: it => list[it[0].dataIndex].p.label + tag(list[it[0].dataIndex]),
-          label: it => { const a = list[it.dataIndex].a; return [`${fmt(lthr(a), 2)} Lt/Hr`, `${fmt(a.Lv)} L ÷ ${fmt(a.Hv)} h válidas`]; } } } },
-        scales: { x: { grid: { display: false } }, y: { grace: '10%', ticks: { callback: v => fmt(v, 1) } } }
+    }
+
+    // Initialize App
+    function initApp() {
+      setupListeners();
+      updateDashboard();
+    }
+
+    // Setup Event Listeners
+    function setupListeners() {
+      // Period Preset Select
+      const presetSelect = document.getElementById('period-preset-select');
+      presetSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'sem40_vs_sem39') {
+          periodA = 'SEM 40';
+          periodB = 'SEM 39';
+        } else if (val === 'sem39_vs_sem38') {
+          periodA = 'SEM 39';
+          periodB = 'SEM 38';
+        } else if (val === 'sem40_vs_sem38') {
+          periodA = 'SEM 40';
+          periodB = 'SEM 38';
+        }
+        document.getElementById('pill-period-a').textContent = periodA;
+        document.getElementById('pill-period-b').textContent = periodB;
+        updateDashboard();
+        showToast(`Comparando ${periodA} vs ${periodB}`);
+      });
+
+      // Refresh Button
+      document.getElementById('btn-refresh-live').addEventListener('click', () => {
+        const icon = document.getElementById('refresh-icon');
+        icon.classList.add('spinning');
+        setTimeout(() => {
+          icon.classList.remove('spinning');
+          updateDashboard();
+          showToast('✅ Tablero actualizado con las lecturas más recientes');
+        }, 600);
+      });
+
+      // Fincas Filter
+      const fincaBtns = document.querySelectorAll('#fincas-filter-container .filter-chip');
+      fincaBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          fincaBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          selectedFinca = btn.dataset.finca;
+          updateDashboard();
+        });
+      });
+
+      // Tipo Filter
+      const tipoBtns = document.querySelectorAll('#tipo-filter-container .filter-chip');
+      tipoBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tipoBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          selectedTipo = btn.dataset.tipo;
+          updateDashboard();
+        });
+      });
+
+      // Desviación Filter
+      const desvBtns = document.querySelectorAll('#desv-filter-container .filter-chip');
+      desvBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          desvBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          selectedDesv = btn.dataset.desv;
+          updateDashboard();
+        });
+      });
+
+      // Search Input
+      const searchInput = document.getElementById('search-input');
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.toLowerCase().trim();
+        updateDashboard();
+      });
+    }
+
+    // Filter Helper
+    function getFilteredRecords(periodName) {
+      return ALL_RECORDS.filter(r => {
+        if (periodName && r.semana !== periodName) return false;
+        if (selectedFinca !== 'ALL' && r.finca !== selectedFinca) return false;
+        if (selectedTipo !== 'ALL' && r.tipo !== selectedTipo) return false;
+        
+        // Desv Filter
+        if (selectedDesv === 'NORMAL' && r.desviacionPct >= 5) return false;
+        if (selectedDesv === 'ALERTA' && (r.desviacionPct < 5 || r.desviacionPct >= 10)) return false;
+        if (selectedDesv === 'CRITICO' && r.desviacionPct < 10) return false;
+
+        // Drilldown Equipment
+        if (drilldownEquipment && r.codigo !== drilldownEquipment) return false;
+
+        // Search Query
+        if (searchQuery) {
+          const text = `${r.codigo} ${r.marca} ${r.modelo} ${r.tipo} ${r.operador} ${r.boleta}`.toLowerCase();
+          if (!text.includes(searchQuery)) return false;
+        }
+
+        return true;
+      });
+    }
+
+    // Main Dashboard Update
+    function updateDashboard() {
+      const recordsA = getFilteredRecords(periodA);
+      const recordsB = getFilteredRecords(periodB);
+
+      updateBreadcrumbs();
+      updateKPICards(recordsA, recordsB);
+      renderTypesComparisonChart(recordsA, recordsB);
+      renderScatterPlot(recordsA);
+      renderAnomaliesBanner(recordsA);
+      renderLogsTable(recordsA);
+    }
+
+    // Breadcrumbs
+    function updateBreadcrumbs() {
+      const currentLabel = document.getElementById('breadcrumb-current');
+      const resetBtn = document.getElementById('btn-reset-drilldown');
+
+      if (drilldownEquipment) {
+        currentLabel.textContent = `🚜 Equipo: ${drilldownEquipment}`;
+        resetBtn.classList.add('visible');
+      } else if (selectedTipo !== 'ALL') {
+        currentLabel.textContent = `Categoría: ${selectedTipo}`;
+        resetBtn.classList.add('visible');
+      } else {
+        currentLabel.textContent = 'Todos los Equipos';
+        resetBtn.classList.remove('visible');
       }
-    });
-  }
-
-  // ---------- Equipos ----------
-  function equiposStats(rows) {
-    const m = groupBy(rows, r => r[1]);
-    const fincaBy = new Map();
-    for (const r of rows) {
-      const k = r[1]; if (!fincaBy.has(k)) fincaBy.set(k, {});
-      const o = fincaBy.get(k); o[r[2]] = (o[r[2]] || 0) + r[4];
     }
-    return [...m.entries()].map(([i, a]) => {
-      const e = S.data.equipos[i];
-      const fo = fincaBy.get(i), fi = Object.entries(fo).sort((x, y) => y[1] - x[1])[0][0];
-      const v = lthr(a);
-      return { i, e, a, lthr: v, finca: S.data.fincas[fi], desv: v != null && e.media ? (v / e.media - 1) * 100 : null, exUSD: a.ex * price() };
-    });
-  }
 
-  function renderEquipos(P) {
-    const stats = equiposStats(S.curRows);
-    const prevStats = new Map(equiposStats(S.prevRows).map(s => [s.i, s]));
-    const q = S.eqSearch.trim().toLowerCase();
-    let list = stats.filter(s => !q || s.e.codigo.toLowerCase().includes(q) || s.e.modelo.toLowerCase().includes(q));
-    const sorters = {
-      litros: (a, b) => b.a.L - a.a.L,
-      exceso: (a, b) => b.exUSD - a.exUSD,
-      desv: (a, b) => (b.desv ?? -1e9) - (a.desv ?? -1e9)
+    // Reset Drilldown
+    function resetDrilldown() {
+      drilldownEquipment = null;
+      selectedTipo = 'ALL';
+      document.querySelectorAll('#tipo-filter-container .filter-chip').forEach(b => {
+        b.classList.toggle('active', b.dataset.tipo === 'ALL');
+      });
+      updateDashboard();
+      showToast('Drilldown restablecido a vista general');
+    }
+
+    // Drilldown to specific equipment
+    window.drilldownToEquipment = function(codigo) {
+      drilldownEquipment = codigo;
+      updateDashboard();
+      // Smooth scroll to table
+      document.querySelector('.table-panel').scrollIntoView({ behavior: 'smooth' });
+      showToast(`Filtrando boletas de ${codigo}`);
     };
-    list.sort(sorters[S.eqSort]);
-    const shown = list.slice(0, S.eqLimit);
-    const head = `<thead><tr><th>#</th><th>Equipo</th><th>Tipo</th><th>Finca principal</th><th>Labor</th>
-      <th class="r">Litros</th><th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Media hist.</th>
-      <th class="r">Desviación</th><th class="r">Lt/Hr vs ant.</th><th class="r">Exceso</th></tr></thead>`;
-    const body = shown.map((s, n) => {
-      const ps = prevStats.get(s.i);
-      const d = ps ? pct(s.lthr, ps.lthr) : null;
-      const desvPill = s.desv == null ? '<span class="muted">—</span>' :
-        s.desv > 10 ? `<span class="pill warn">▲ ${fmt(s.desv, 1)}%</span>` :
-        s.desv < -10 ? `<span class="pill good">▼ ${fmt(Math.abs(s.desv), 1)}%</span>` :
-        `<span class="pill neutral">${s.desv >= 0 ? '+' : '−'}${fmt(Math.abs(s.desv), 1)}%</span>`;
-      const dh = d == null ? '<span class="muted">—</span>' :
-        `<span class="${Math.abs(d) < 0.05 ? 'delta-neutral' : d > 0 ? 'delta-warn' : 'delta-good'}">${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${fmt(Math.abs(d), 1)}%</span>`;
-      return `<tr class="click" data-eq="${s.i}" tabindex="0">
-        <td class="muted num">${n + 1}</td>
-        <td><b>${esc(s.e.codigo)}</b> <span class="muted">${esc(s.e.marca)} ${esc(s.e.modelo)}</span></td>
-        <td>${esc(s.e.tipo)}</td><td>${esc(s.finca)}</td><td>${esc(s.e.labor)}</td>
-        <td class="r num">${fmt(s.a.L)}</td><td class="r num">${fmt(s.a.Hv)}</td>
-        <td class="r num"><b>${fmt(s.lthr, 2)}</b></td><td class="r num muted">${fmt(s.e.media, 1)}</td>
-        <td class="r">${desvPill}</td><td class="r num">${dh}</td>
-        <td class="r num">${usd(s.exUSD)}</td></tr>`;
-    }).join('');
-    $('eq-table').innerHTML = head + `<tbody>${body || '<tr><td colspan="12" class="empty">Sin equipos para estos filtros</td></tr>'}</tbody>`;
 
-    renderPareto(stats);
-    renderComparator();
-    renderModelos();
-  }
+    // Calculate Summary Stats
+    function calculateStats(records) {
+      let totalDiesel = 0;
+      let totalHoras = 0;
+      let excesoLitros = 0;
+      let excesoCosto = 0;
+      let criticosCount = 0;
 
-  function renderPareto(stats) {
-    const items = stats.filter(s => s.exUSD > 0).sort((a, b) => b.exUSD - a.exUSD);
-    const tot = items.reduce((s, x) => s + x.exUSD, 0);
-    let cum = 0, n80 = 0;
-    items.forEach(s => { cum += s.exUSD; s.cum = cum / tot * 100; if (s.cum - s.exUSD / tot * 100 < 80) n80++; });
-    if (!items.length) { $('pareto-headline').textContent = 'Sin exceso registrado en este período.'; makeChart('ch-pareto', { type: 'bar', data: { labels: [], datasets: [] } }); return; }
-    const activos = stats.length;
-    $('pareto-headline').innerHTML = `<b>${fmt(n80)} equipos</b> (${fmt(n80 / activos * 100, 0)}% de los ${fmt(activos)} activos) explican el 80% del exceso, <b>${usd(tot * 0.8)}</b> de ${usd(tot)}.`;
-    const top = items.slice(0, 25);
-    makeChart('ch-pareto', {
-      type: 'bar',
-      data: { labels: top.map(s => s.e.codigo), datasets: [{ label: 'Exceso US$', data: top.map(s => Math.round(s.exUSD)),
-        backgroundColor: top.map((s, i) => i < n80 ? css('--series') : css('--series-muted')), borderRadius: 4, maxBarThickness: 30 }] },
-      options: {
-        maintainAspectRatio: false, animation: false,
-        onClick: (e, els) => { if (els.length) openEquipo(top[els[0].index].i); },
-        plugins: { legend: { display: false }, tooltip: { callbacks: {
-          title: it => { const s = top[it[0].dataIndex]; return `${s.e.codigo} · ${s.e.marca} ${s.e.modelo}`; },
-          label: it => { const s = top[it.dataIndex]; return [`${usd(s.exUSD)} (${fmt(s.a.ex)} L de exceso)`, `Acumulado: ${fmt(s.cum, 1)}% del exceso`]; } } } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: v => 'US$' + fmt(v) } } }
+      records.forEach(r => {
+        totalDiesel += r.dieselLitros;
+        totalHoras += r.horasTrabajadas;
+        if (r.desviacionPct >= 10) {
+          criticosCount++;
+          excesoCosto += r.costoExceso;
+          // Calculate excess liters based on baseline media
+          const expected = r.horasTrabajadas * r.mediaHistorica;
+          if (r.dieselLitros > expected) {
+            excesoLitros += (r.dieselLitros - expected);
+          }
+        }
+      });
+
+      const avgLtHr = totalHoras > 0 ? (totalDiesel / totalHoras) : 0;
+
+      return {
+        totalDiesel: Math.round(totalDiesel),
+        totalHoras: Math.round(totalHoras * 10) / 10,
+        avgLtHr: Math.round(avgLtHr * 100) / 100,
+        excesoLitros: Math.round(excesoLitros),
+        excesoCosto: Math.round(excesoCosto),
+        criticosCount
+      };
+    }
+
+    // Update KPI Cards
+    function updateKPICards(recordsA, recordsB) {
+      const statsA = calculateStats(recordsA);
+      const statsB = calculateStats(recordsB);
+
+      // KPI 1: Diesel Litros
+      document.getElementById('kpi-diesel-litros').textContent = statsA.totalDiesel.toLocaleString();
+      const dieselDelta = statsB.totalDiesel > 0 
+        ? Math.round(((statsA.totalDiesel - statsB.totalDiesel) / statsB.totalDiesel) * 1000) / 10 
+        : 0;
+      const tagDiesel = document.getElementById('kpi-diesel-delta');
+      tagDiesel.textContent = `${dieselDelta >= 0 ? '+' : ''}${dieselDelta}%`;
+      tagDiesel.className = `kpi-delta-tag ${dieselDelta > 0 ? 'delta-up-bad' : 'delta-down-good'}`;
+      document.getElementById('kpi-diesel-period-b').textContent = `${periodB}: ${statsB.totalDiesel.toLocaleString()} L`;
+      const netDiesel = statsA.totalDiesel - statsB.totalDiesel;
+      document.getElementById('kpi-diesel-net-diff').textContent = `Dif: ${netDiesel >= 0 ? '+' : ''}${netDiesel.toLocaleString()} L`;
+
+      // KPI 2: Horas
+      document.getElementById('kpi-horas-total').textContent = statsA.totalHoras.toLocaleString();
+      const horasDelta = statsB.totalHoras > 0 
+        ? Math.round(((statsA.totalHoras - statsB.totalHoras) / statsB.totalHoras) * 1000) / 10 
+        : 0;
+      const tagHoras = document.getElementById('kpi-horas-delta');
+      tagHoras.textContent = `${horasDelta >= 0 ? '+' : ''}${horasDelta}%`;
+      tagHoras.className = `kpi-delta-tag ${horasDelta >= 0 ? 'delta-up-good' : 'delta-neutral'}`;
+      document.getElementById('kpi-horas-period-b').textContent = `${periodB}: ${statsB.totalHoras.toLocaleString()} hrs`;
+      const netHoras = Math.round((statsA.totalHoras - statsB.totalHoras) * 10) / 10;
+      document.getElementById('kpi-horas-net-diff').textContent = `Dif: ${netHoras >= 0 ? '+' : ''}${netHoras} hrs`;
+
+      // KPI 3: Eficiencia Lt/Hr
+      document.getElementById('kpi-lthr-promedio').textContent = statsA.avgLtHr.toFixed(2);
+      const lthrDelta = statsB.avgLtHr > 0 
+        ? Math.round(((statsA.avgLtHr - statsB.avgLtHr) / statsB.avgLtHr) * 1000) / 10 
+        : 0;
+      const tagLtHr = document.getElementById('kpi-lthr-delta');
+      tagLtHr.textContent = `${lthrDelta >= 0 ? '+' : ''}${lthrDelta}%`;
+      tagLtHr.className = `kpi-delta-tag ${lthrDelta > 0 ? 'delta-up-bad' : 'delta-down-good'}`;
+      document.getElementById('kpi-lthr-period-b').textContent = `${periodB}: ${statsB.avgLtHr.toFixed(2)} Lt/Hr`;
+
+      // KPI 4: Sobreconsumo Crítico
+      document.getElementById('kpi-exceso-costo').textContent = `$${statsA.excesoCosto.toLocaleString()}`;
+      document.getElementById('kpi-criticos-count').textContent = `${statsA.criticosCount} en alerta`;
+      document.getElementById('kpi-exceso-litros').textContent = `Exceso: ${statsA.excesoLitros.toLocaleString()} L`;
+      const avgDesvA = recordsA.length > 0 
+        ? Math.round((recordsA.reduce((acc, r) => acc + r.desviacionPct, 0) / recordsA.length) * 10) / 10 
+        : 0;
+      document.getElementById('kpi-desv-promedio').textContent = `Desv. Prom: ${avgDesvA >= 0 ? '+' : ''}${avgDesvA}%`;
+    }
+
+    // Render Nivel 1: Horizontal Bar Chart (Period A vs B by Equipment Type)
+    function renderTypesComparisonChart(recordsA, recordsB) {
+      const typesList = ['Tractor Agricola', 'Mini Excavadora', 'Excavadora', 'Tractor Oruga', 'Montacarga', 'Camión'];
+
+      function getAvgByType(records) {
+        const res = {};
+        typesList.forEach(t => res[t] = { diesel: 0, horas: 0, count: 0 });
+        records.forEach(r => {
+          if (res[r.tipo]) {
+            res[r.tipo].diesel += r.dieselLitros;
+            res[r.tipo].horas += r.horasTrabajadas;
+            res[r.tipo].count++;
+          }
+        });
+        return typesList.map(t => {
+          const item = res[t];
+          return item.horas > 0 ? Math.round((item.diesel / item.horas) * 100) / 100 : 0;
+        });
       }
-    });
-  }
 
-  function modelStats(rows) {
-    const m = new Map();
-    for (const r of rows) {
-      const e = S.data.equipos[r[1]];
-      const key = `${e.marca} ${e.modelo}`;
-      if (!m.has(key)) m.set(key, { key, marca: e.marca, modelo: e.modelo, tipo: e.tipo, cap: e.capacidad, a: newAcc(), units: new Map() });
-      const o = m.get(key); add(o.a, r);
-      if (!o.units.has(r[1])) o.units.set(r[1], newAcc());
-      add(o.units.get(r[1]), r);
+      const dataA = getAvgByType(recordsA);
+      const dataB = getAvgByType(recordsB);
+
+      const labels = [
+        '🚜 Tractores',
+        '🏗️ Mini Excavadoras',
+        '🏗️ Excavadoras',
+        '🚜 Orugas',
+        '📦 Montacargas',
+        '🚛 Camiones'
+      ];
+
+      const ctx = document.getElementById('chart-types-compare').getContext('2d');
+
+      if (chartTypes) {
+        chartTypes.destroy();
+      }
+
+      chartTypes = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: `${periodA} (Actual)`,
+              data: dataA,
+              backgroundColor: 'rgba(59, 130, 246, 0.85)',
+              borderColor: '#3b82f6',
+              borderWidth: 1.5,
+              borderRadius: 6
+            },
+            {
+              label: `${periodB} (Anterior)`,
+              data: dataB,
+              backgroundColor: 'rgba(139, 92, 246, 0.45)',
+              borderColor: '#8b5cf6',
+              borderWidth: 1.5,
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                color: '#94a3b8',
+                font: { family: 'Inter', size: 11, weight: '600' }
+              }
+            },
+            tooltip: {
+              enabled: false,
+              external: function(context) {
+                renderCustomChartTooltip(context, 'bar');
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } },
+              title: { display: true, text: 'Consumo Promedio (Lt / Hr)', color: '#64748b', font: { size: 10 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#f8fafc', font: { family: 'Inter', size: 11, weight: '600' } }
+            }
+          },
+          onClick: (event, elements) => {
+            if (elements.length > 0) {
+              const index = elements[0].index;
+              const rawType = typesList[index];
+              selectedTipo = rawType;
+              document.querySelectorAll('#tipo-filter-container .filter-chip').forEach(b => {
+                b.classList.toggle('active', b.dataset.tipo === rawType);
+              });
+              updateDashboard();
+              showToast(`Drilldown aplicado: ${rawType}`);
+            }
+          }
+        }
+      });
     }
-    return [...m.values()].map(o => {
-      const u = [...o.units.entries()].filter(([, a]) => a.Hv >= 50).map(([i, a]) => ({ code: S.data.equipos[i].codigo, v: lthr(a) })).sort((x, y) => x.v - y.v);
-      return { ...o, lthr: lthr(o.a), uMin: u[0], uMax: u[u.length - 1], uN: u.length };
-    });
-  }
 
-  function renderModelos() {
-    const list = modelStats(S.curRows).filter(m => m.a.Hv > 0);
-    const head = `<thead><tr><th>Modelo</th><th>Capacidad</th><th class="r">Unidades</th><th class="r">Litros</th>
-      <th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Costo / hora</th><th>Unidad más eficiente</th><th>Unidad menos eficiente</th><th class="r">Brecha</th></tr></thead>`;
-    if (!list.length) { $('mod-table').innerHTML = head + '<tbody><tr><td colspan="10" class="empty">Sin datos</td></tr></tbody>'; return; }
-    // Agrupado por tipo de equipo: tipos de mayor a menor consumo, y dentro de cada uno, modelos por litros.
-    const groups = new Map();
-    for (const m of list) { if (!groups.has(m.tipo)) groups.set(m.tipo, []); groups.get(m.tipo).push(m); }
-    const tipoAcc = new Map([...groups].map(([t, ms]) => {
-      const a = newAcc(); S.curRows.forEach(r => { if (S.data.equipos[r[1]].tipo === t) add(a, r); });
-      return [t, a];
-    }));
-    const order = [...groups.keys()].sort((x, y) => tipoAcc.get(y).L - tipoAcc.get(x).L);
-    const row = m => {
-      const gap = m.uN >= 2 ? (m.uMax.v / m.uMin.v - 1) * 100 : null;
-      return `<tr><td style="padding-left:22px"><b>${esc(m.marca)} ${esc(m.modelo)}</b></td><td class="muted">${esc(m.cap || '—')}</td>
-        <td class="r num">${fmt(m.units.size)}</td><td class="r num">${fmt(m.a.L)}</td><td class="r num">${fmt(m.a.Hv)}</td>
-        <td class="r num"><b>${fmt(m.lthr, 2)}</b></td><td class="r num">US$${fmt(m.lthr * price(), 2)}</td>
-        <td>${m.uN >= 2 ? `${esc(m.uMin.code)} <span class="muted num">${fmt(m.uMin.v, 2)}</span>` : '<span class="muted">—</span>'}</td>
-        <td>${m.uN >= 2 ? `${esc(m.uMax.code)} <span class="muted num">${fmt(m.uMax.v, 2)}</span>` : '<span class="muted">—</span>'}</td>
-        <td class="r">${gap == null ? '<span class="muted">—</span>' : gap > 30 ? `<span class="pill warn">${fmt(gap, 0)}%</span>` : `<span class="num">${fmt(gap, 0)}%</span>`}</td></tr>`;
+    // Render Nivel 2: Scatter Plot (Horas vs Lt/Hr with Desv Semáforo)
+    function renderScatterPlot(records) {
+      // Group by equipment
+      const eqMap = {};
+      records.forEach(r => {
+        if (!eqMap[r.codigo]) {
+          eqMap[r.codigo] = {
+            codigo: r.codigo,
+            tipo: r.tipo,
+            marca: r.marca,
+            modelo: r.modelo,
+            finca: r.finca,
+            diesel: 0,
+            horas: 0,
+            mediaHistorica: r.mediaHistorica,
+            costoExceso: 0,
+            desvSum: 0,
+            count: 0
+          };
+        }
+        eqMap[r.codigo].diesel += r.dieselLitros;
+        eqMap[r.codigo].horas += r.horasTrabajadas;
+        eqMap[r.codigo].costoExceso += r.costoExceso;
+        eqMap[r.codigo].desvSum += r.desviacionPct;
+        eqMap[r.codigo].count++;
+      });
+
+      const scatterData = [];
+      Object.values(eqMap).forEach(eq => {
+        if (eq.horas <= 0) return;
+        const lthr = Math.round((eq.diesel / eq.horas) * 100) / 100;
+        const avgDesv = Math.round((eq.desvSum / eq.count) * 10) / 10;
+        
+        let color = '#10b981'; // Normal
+        if (avgDesv >= 10) color = '#ef4444'; // Crítico
+        else if (avgDesv >= 5) color = '#f59e0b'; // Alerta
+
+        scatterData.push({
+          x: Math.round(eq.horas * 10) / 10,
+          y: lthr,
+          codigo: eq.codigo,
+          tipo: eq.tipo,
+          modelo: `${eq.marca} ${eq.modelo}`,
+          finca: eq.finca,
+          diesel: Math.round(eq.diesel),
+          media: eq.mediaHistorica,
+          desviacion: avgDesv,
+          costo: Math.round(eq.costoExceso),
+          color: color,
+          radius: Math.min(Math.max(eq.diesel / 25, 5), 14) // Bubble size based on diesel
+        });
+      });
+
+      const ctx = document.getElementById('chart-scatter-equipos').getContext('2d');
+
+      if (chartScatter) {
+        chartScatter.destroy();
+      }
+
+      chartScatter = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: 'Equipos en Operación',
+            data: scatterData,
+            backgroundColor: scatterData.map(d => d.color),
+            borderColor: 'rgba(255, 255, 255, 0.4)',
+            borderWidth: 1.5,
+            pointRadius: scatterData.map(d => d.radius),
+            pointHoverRadius: scatterData.map(d => d.radius + 3)
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: false,
+              external: function(context) {
+                renderCustomChartTooltip(context, 'scatter');
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } },
+              title: { display: true, text: 'Horas Trabajadas en el Período', color: '#64748b', font: { size: 10 } }
+            },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } },
+              title: { display: true, text: 'Consumo Real (Lt / Hr)', color: '#64748b', font: { size: 10 } }
+            }
+          },
+          onClick: (event, elements) => {
+            if (elements.length > 0) {
+              const dataPoint = scatterData[elements[0].index];
+              if (dataPoint && dataPoint.codigo) {
+                drilldownToEquipment(dataPoint.codigo);
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Custom Tooltip Handler for Chart.js
+    function renderCustomChartTooltip(context, chartType) {
+      const tooltipEl = document.getElementById('custom-chart-tooltip');
+      const tooltipModel = context.tooltip;
+
+      if (tooltipModel.opacity === 0) {
+        tooltipEl.style.display = 'none';
+        return;
+      }
+
+      if (tooltipModel.body) {
+        const item = tooltipModel.dataPoints[0];
+        let innerHtml = '';
+
+        if (chartType === 'scatter') {
+          const raw = item.raw;
+          const statusClass = raw.desviacion >= 10 ? 'critico' : (raw.desviacion >= 5 ? 'alerta' : 'normal');
+          const statusText = raw.desviacion >= 10 ? '⚠️ CRÍTICO (>10%)' : (raw.desviacion >= 5 ? '🟡 ALERTA' : '🟢 NORMAL');
+
+          innerHtml = `
+            <div class="tooltip-header">🚜 ${raw.codigo} · ${raw.modelo}</div>
+            <div class="tooltip-sub">Finca: ${raw.finca} | Tipo: ${raw.tipo}</div>
+            <div class="tooltip-row"><span>Consumo Real:</span><span class="tooltip-val ${statusClass}">${raw.y} Lt/Hr</span></div>
+            <div class="tooltip-row"><span>Media Esperada:</span><span class="tooltip-val">${raw.media || 'N/A'} Lt/Hr</span></div>
+            <div class="tooltip-row"><span>Desviación:</span><span class="tooltip-val ${statusClass}">${raw.desviacion >= 0 ? '+' : ''}${raw.desviacion}%</span></div>
+            <div class="tooltip-row"><span>Diesel Consumido:</span><span class="tooltip-val">${raw.diesel} Litros</span></div>
+            <div class="tooltip-row"><span>Horas Operadas:</span><span class="tooltip-val">${raw.x} hrs</span></div>
+            ${raw.costo > 0 ? `<div class="tooltip-row" style="color:#f87171;"><span>Impacto Costo:</span><span class="tooltip-val critico">+$${raw.costo} USD</span></div>` : ''}
+            <div class="tooltip-footer-hint">💡 Clic para ver boletas individuales de este equipo</div>
+          `;
+        } else if (chartType === 'bar') {
+          const dataset = item.dataset;
+          innerHtml = `
+            <div class="tooltip-header">${item.label}</div>
+            <div class="tooltip-sub">${dataset.label}</div>
+            <div class="tooltip-row"><span>Consumo Medio:</span><span class="tooltip-val">${item.raw} Lt/Hr</span></div>
+            <div class="tooltip-footer-hint">💡 Clic para filtrar toda la flota por este tipo</div>
+          `;
+        }
+
+        tooltipEl.innerHTML = innerHtml;
+      }
+
+      const position = context.chart.canvas.getBoundingClientRect();
+      tooltipEl.style.display = 'block';
+      tooltipEl.style.left = position.left + window.pageXOffset + tooltipModel.caretX + 12 + 'px';
+      tooltipEl.style.top = position.top + window.pageYOffset + tooltipModel.caretY - 20 + 'px';
+    }
+
+    // Top Anomalies Ranking Banner
+    function renderAnomaliesBanner(records) {
+      const banner = document.getElementById('ranking-anomalies-container');
+      const criticals = records.filter(r => r.desviacionPct >= 10).sort((a, b) => b.costoExceso - a.costoExceso).slice(0, 4);
+
+      if (criticals.length === 0) {
+        banner.innerHTML = '';
+        return;
+      }
+
+      let cardsHtml = criticals.map(c => `
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-md); padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px;">⚠️</span>
+            <span style="font-weight: 700; color: #f87171;">${c.codigo}</span>
+            <span style="font-size: 11px; color: var(--text-dim);">${c.marca} ${c.modelo} (${c.finca})</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; font-size: 11px;">
+            <span>Consumo: <strong>${c.consumoLtHr} Lt/Hr</strong> (Media: ${c.mediaHistorica})</span>
+            <span class="status-pill pill-critico">+${c.desviacionPct}% Desv.</span>
+            ${c.costoExceso > 0 ? `<span style="color: #f87171; font-weight: 700;">+$${c.costoExceso} USD</span>` : ''}
+            <button class="btn-action-audit" onclick="openAuditModal('${c.id}')">Auditar</button>
+          </div>
+        </div>
+      `).join('');
+
+      banner.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #f87171; letter-spacing: 0.05em;">🚨 Top Equipos con Mayor Sobreconsumo en ${periodA}</span>
+        </div>
+        ${cardsHtml}
+      `;
+    }
+
+    // Render Logs Table
+    function renderLogsTable(records) {
+      const tbody = document.getElementById('table-body-logs');
+      const countEl = document.getElementById('table-record-count');
+      const subtitle = document.getElementById('table-subtitle');
+
+      countEl.textContent = `${records.length} lecturas`;
+      if (drilldownEquipment) {
+        subtitle.textContent = `Mostrando historial específico para el equipo ${drilldownEquipment}`;
+      } else {
+        subtitle.textContent = `Mostrando lecturas de combustible y horómetros para ${periodA}`;
+      }
+
+      if (records.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="13" style="text-align: center; padding: 24px; color: var(--text-dim);">
+              No se encontraron registros con los filtros seleccionados.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = records.map(r => {
+        let pillClass = 'pill-normal';
+        let sign = r.desviacionPct >= 0 ? '+' : '';
+        if (r.desviacionPct >= 10) pillClass = 'pill-critico';
+        else if (r.desviacionPct >= 5) pillClass = 'pill-alerta';
+
+        return `
+          <tr onclick="openAuditModal('${r.id}')">
+            <td>${r.fecha || 'Sin fecha'}</td>
+            <td><strong>#${r.boleta || 'S/B'}</strong></td>
+            <td><span class="eq-code-badge">${r.codigo}</span></td>
+            <td>${r.tipo}</td>
+            <td>${r.finca}</td>
+            <td style="color: var(--text-muted);">${r.operador}</td>
+            <td><strong>${r.horasTrabajadas} hrs</strong></td>
+            <td>${r.dieselLitros} L</td>
+            <td><strong>${r.consumoLtHr}</strong></td>
+            <td style="color: var(--text-dim);">${r.mediaHistorica || '-'}</td>
+            <td><span class="status-pill ${pillClass}">${sign}${r.desviacionPct}%</span></td>
+            <td style="font-weight: 700; color: ${r.costoExceso > 0 ? '#f87171' : 'var(--text-dim)'};">
+              ${r.costoExceso > 0 ? `$${r.costoExceso}` : '$0'}
+            </td>
+            <td>
+              <button class="btn-action-audit" onclick="event.stopPropagation(); openAuditModal('${r.id}')">Detalle</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Modal
+    window.openAuditModal = function(recordId) {
+      const rec = ALL_RECORDS.find(r => r.id === recordId);
+      if (!rec) return;
+
+      document.getElementById('modal-eq-title').innerHTML = `⛽ Boleta #${rec.boleta || rec.registroId} — ${rec.codigo}`;
+      
+      const statusClass = rec.desviacionPct >= 10 ? 'critico' : (rec.desviacionPct >= 5 ? 'alerta' : 'normal');
+
+      document.getElementById('modal-eq-body').innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
+          <div>
+            <h4 style="font-size: 16px; font-weight: 800; color: #ffffff;">${rec.codigo} · ${rec.marca} ${rec.modelo}</h4>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Tipo: ${rec.tipo} | Finca: ${rec.finca} | Operador: ${rec.operador}</p>
+          </div>
+          <span class="status-pill pill-${statusClass}" style="font-size: 12px; padding: 4px 10px;">
+            ${rec.desviacionPct >= 0 ? '+' : ''}${rec.desviacionPct}% Desviación
+          </span>
+        </div>
+
+        <div class="modal-stats-grid">
+          <div class="modal-stat-box">
+            <div class="modal-stat-label">Diesel Suministrado</div>
+            <div class="modal-stat-val">${rec.dieselLitros} Litros</div>
+          </div>
+          <div class="modal-stat-box">
+            <div class="modal-stat-label">Horas Operadas</div>
+            <div class="modal-stat-val">${rec.horasTrabajadas} hrs</div>
+          </div>
+          <div class="modal-stat-box">
+            <div class="modal-stat-label">Consumo Registrado</div>
+            <div class="modal-stat-val" style="color: ${rec.desviacionPct >= 10 ? '#f87171' : '#34d399'};">${rec.consumoLtHr} Lt/Hr</div>
+          </div>
+          <div class="modal-stat-box">
+            <div class="modal-stat-label">Media del Modelo</div>
+            <div class="modal-stat-val">${rec.mediaHistorica} Lt/Hr</div>
+          </div>
+          <div class="modal-stat-box">
+            <div class="modal-stat-label">Fecha de Carga</div>
+            <div class="modal-stat-val" style="font-size: 13px;">${rec.fecha}</div>
+          </div>
+          <div class="modal-stat-box">
+            <div class="modal-stat-label">Impacto Exceso</div>
+            <div class="modal-stat-val" style="color: #f87171;">$${rec.costoExceso} USD</div>
+          </div>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px;">
+          <h5 style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-dim); margin-bottom: 6px;">💡 Diagnóstico Recomendado</h5>
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+            ${rec.desviacionPct >= 10 
+              ? '⚠️ Se detectó sobreconsumo crítico. Se sugiere programar una inspección técnica de inyectores, filtro de aire y revisión de fugas o exceso de ralentí con el operador asignado.' 
+              : '✅ Rendimiento dentro de los parámetros esperados de operación agrícola.'}
+          </p>
+        </div>
+      `;
+
+      // Set Airtable link
+      document.getElementById('modal-airtable-link').href = `https://airtable.com/appAAXTzqCsQh7aYr/tbljY4bG8tZfLuSY0/viwR8djCQ3ZElJDs7/${rec.id}`;
+
+      document.getElementById('audit-modal').classList.add('active');
     };
-    const body = order.map(t => {
-      const ms = groups.get(t).sort((x, y) => y.a.L - x.a.L), a = tipoAcc.get(t);
-      return `<tbody class="grp"><tr class="grp-head"><td>${esc(t)} <span class="muted">· ${fmt(ms.length)} modelos</span></td><td></td>
-        <td class="r num">${fmt(a.eq.size)}</td><td class="r num">${fmt(a.L)}</td><td class="r num">${fmt(a.Hv)}</td>
-        <td class="r num">${fmt(lthr(a), 2)}</td><td class="r num">US$${fmt(lthr(a) * price(), 2)}</td><td colspan="3"></td></tr>
-        ${ms.map(row).join('')}</tbody>`;
-    }).join('');
-    $('mod-table').innerHTML = head + body;
-  }
 
-  function renderComparator() {
-    const list = modelStats(S.curRows).filter(m => m.a.Hv >= 50).sort((a, b) => a.key.localeCompare(b.key, 'es'));
-    if (list.length < 2) {
-      $('cmp-a').innerHTML = $('cmp-b').innerHTML = '<div class="empty">Se necesitan dos modelos con al menos 50 h</div>';
-      $('cmp-verdict').textContent = ''; return;
-    }
-    const byKey = new Map(list.map(m => [m.key, m]));
-    if (!byKey.has(S.cmpA) || !byKey.has(S.cmpB) || S.cmpA === S.cmpB) {
-      // Por defecto: los dos modelos con más horas dentro del tipo con más horas.
-      const tipoH = {}; list.forEach(m => tipoH[m.tipo] = (tipoH[m.tipo] || 0) + m.a.Hv);
-      const topTipo = Object.entries(tipoH).sort((a, b) => b[1] - a[1])[0][0];
-      const pair = list.filter(m => m.tipo === topTipo).sort((a, b) => b.a.Hv - a.a.Hv);
-      const pick = pair.length >= 2 ? pair : [...list].sort((a, b) => b.a.Hv - a.a.Hv);
-      if (!byKey.has(S.cmpA)) S.cmpA = pick[0].key;
-      if (!byKey.has(S.cmpB) || S.cmpB === S.cmpA) S.cmpB = pick.find(m => m.key !== S.cmpA).key;
-    }
-    $('cmp-list').innerHTML = list.map(o => `<option value="${esc(o.key)}" label="${esc(o.tipo)} · ${fmt(o.units.size)} u. · ${fmt(o.lthr, 2)} Lt/Hr"></option>`).join('');
-    S.cmpKeys = byKey;
-    const card = (side, key) => {
-      const m = byKey.get(key);
-      return `<input type="search" list="cmp-list" data-cmp="${side}" value="${esc(key)}" placeholder="Buscar modelo, marca o tipo…" aria-label="Modelo ${side}" autocomplete="off">
-        <div class="muted" style="font-size:12px">${esc(m.tipo)}${m.cap ? ' · ' + esc(m.cap) : ''} · ${fmt(m.units.size)} unidades</div>
-        <div class="big num">${fmt(m.lthr, 2)} <small class="muted" style="font-size:13px">Lt/Hr</small></div>
-        <div class="row"><span>Costo por hora</span><b class="num">US$${fmt(m.lthr * price(), 2)}</b></div>
-        <div class="row"><span>Horas en el período</span><b class="num">${fmt(m.a.Hv)}</b></div>
-        <div class="row"><span>Litros</span><b class="num">${fmt(m.a.L)}</b></div>`;
+    window.closeModal = function() {
+      document.getElementById('audit-modal').classList.remove('active');
     };
-    $('cmp-a').innerHTML = card('A', S.cmpA);
-    $('cmp-b').innerHTML = card('B', S.cmpB);
-    const A = byKey.get(S.cmpA), B = byKey.get(S.cmpB);
-    const [lo, hi] = A.lthr <= B.lthr ? [A, B] : [B, A];
-    const diff = hi.lthr - lo.lthr;
-    $('cmp-verdict').innerHTML = diff < 0.005 ? 'Ambos modelos consumen lo mismo por hora en este período.' :
-      `<b>${esc(lo.key)}</b> consume <b>${fmt(diff, 2)} Lt/Hr menos</b> que ${esc(hi.key)} (${fmt(diff / hi.lthr * 100, 1)}% menos). ` +
-      `Por cada 1,000 horas de operación son <b>${fmt(diff * 1000)} L ≈ ${usd(diff * 1000 * price())}</b> de diferencia.`;
-  }
 
-  // ---------- Ficha de equipo ----------
-  function openEquipo(i) {
-    const e = S.data.equipos[i];
-    const cur = S.curRows.filter(r => r[1] === i);
-    const a = total(cur);
-    $('m-title').textContent = `${e.codigo} · ${e.marca} ${e.modelo}`;
-    $('m-sub').innerHTML = `${esc(e.tipo)}${e.capacidad ? ' · ' + esc(e.capacidad) : ''} · labor asignada: ${esc(e.labor)} · período: ${esc(rangeLabel(S.P.cur))}` +
-      (e.id ? ` · ${linkHtml('equipo', e.id, 'Ver ficha del equipo')}` : '');
-    const v = lthr(a);
-    $('m-kpis').innerHTML = [
-      ['Litros', fmt(a.L)], ['Horas válidas', fmt(a.Hv)], ['Lt/Hr', fmt(v, 2)],
-      ['Media histórica', fmt(e.media, 1)], ['Exceso', usd(a.ex * price())]
-    ].map(([l, x]) => `<div><span>${l}</span><b class="num">${x}</b></div>`).join('');
-
-    // Serie mensual completa del equipo (todas las fechas) para ver tendencia.
-    const all = S.data.rows.filter(r => r[1] === i);
-    const mm = new Map();
-    all.forEach(r => { const k = r[0].slice(0, 7); if (!mm.has(k)) mm.set(k, newAcc()); add(mm.get(k), r); });
-    const keys = [...mm.keys()].sort();
-    const line = css('--series'), ref = css('--text-3');
-    makeChart('ch-equipo', {
-      type: 'line',
-      data: { labels: keys.map(k => MES[+k.slice(5) - 1] + ' ' + k.slice(2, 4)), datasets: [
-        { label: 'Lt/Hr del mes', data: keys.map(k => { const x = lthr(mm.get(k)); return x == null ? null : +x.toFixed(2); }),
-          borderColor: line, backgroundColor: line, borderWidth: 2, pointRadius: 4, pointHitRadius: 12, tension: 0.2, spanGaps: true },
-        { label: 'Media histórica', data: keys.map(() => e.media), borderColor: ref, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 }
-      ] },
-      options: { maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 14, boxHeight: 2 } } },
-        scales: { x: { grid: { display: false } }, y: { grace: '15%' } } }
-    });
-
-    const last = [...cur].sort((x, y) => y[0].localeCompare(x[0])).slice(0, 12);
-    $('m-boletas').innerHTML = `<thead><tr><th>Fecha</th><th>Finca</th><th class="r">Litros</th><th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Exceso L</th><th>Estado</th><th></th></tr></thead><tbody>` +
-      last.map(r => {
-        const st = r[7] & ERR ? '<span class="pill warn">Error de lectura</span>' : r[7] & DANADO ? '<span class="pill warn">Horómetro dañado</span>' : r[5] <= 0 ? '<span class="pill neutral">Sin horas</span>' : '';
-        return `<tr><td>${fmtDayY(r[0])}</td><td>${esc(S.data.fincas[r[2]])}</td><td class="r num">${fmt(r[4], 1)}</td><td class="r num">${fmt(r[5], 1)}</td>
-          <td class="r num">${r[5] > 0 ? fmt(r[4] / r[5], 2) : '—'}</td><td class="r num">${r[6] > 0 ? fmt(r[6], 1) : '—'}</td><td>${st}</td>
-          <td>${linkHtml('boleta', r[8], 'Ver boleta')}</td></tr>`;
-      }).join('') + (last.length ? '' : '<tr><td colspan="8" class="empty">Sin boletas en el período</td></tr>') + '</tbody>';
-    $('modal').classList.add('open');
-    $('m-close').focus();
-  }
-  function closeModal() { $('modal').classList.remove('open'); }
-
-  // ---------- Calidad ----------
-  // La OTC "REPARAR HORÓMETRO" se vincula al equipo, no a la boleta: se toma la del mismo equipo
-  // más cercana a la fecha del último reporte, dentro de ±30 días.
-  function otcHorometroFor(eqIdx, fecha) {
-    let best = null, bestD = 31;
-    for (const c of S.data.otcHorometro || []) {
-      if (c[0] !== eqIdx || !c[1]) continue;
-      const d = Math.abs(daysBetween(fecha, c[1]));
-      if (d < bestD || (d === bestD && best && c[1] > best[1])) { best = c; bestD = d; }
+    // Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast-msg');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 3000);
     }
-    return best;
-  }
-  function renderCalidad(P) {
-    const rows = S.curRows, a = total(rows);
-    const validas = rows.filter(r => !(r[7] & ERR) && r[5] > 0).length;
-    const sinFinca = rows.filter(r => S.data.fincas[r[2]] === 'Sin finca').length;
-    const danEq = new Set(rows.filter(r => r[7] & DANADO).map(r => r[1]));
-    const LsinH = rows.filter(r => !(r[7] & ERR) && r[5] <= 0).reduce((s, r) => s + r[4], 0);
 
-    // Equipos con horómetro dañado y su OTC de reparación (emparejada por equipo y fecha).
-    const dm = new Map();
-    rows.filter(r => r[7] & DANADO).forEach(r => {
-      if (!dm.has(r[1])) dm.set(r[1], { n: 0, last: r[0], finca: r[2] });
-      const o = dm.get(r[1]); o.n++; if (r[0] >= o.last) { o.last = r[0]; o.finca = r[2]; }
-    });
-    for (const [i, o] of dm) o.otc = otcHorometroFor(i, o.last);
-    const conOTC = [...dm.values()].filter(o => o.otc).length;
-
-    const tiles = [
-      { lbl: 'Boletas aptas para eficiencia', val: a.n ? fmt(validas / a.n * 100, 1) + '%' : '—', sub: `${fmt(validas)} de ${fmt(a.n)} boletas con horas > 0 y sin error de lectura` },
-      { lbl: 'Errores de lectura', val: fmt(a.nErr), sub: 'Horómetro menor o igual al anterior. Se excluyen del Lt/Hr.' },
-      { lbl: 'Diésel sin horas', val: fmt(LsinH), unit: 'L', sub: `${fmt(a.nSinH)} boletas con litros pero 0 horas. Cuentan en litros, no en Lt/Hr.` },
-      { lbl: 'Horómetro dañado', val: fmt(dm.size), unit: 'equipos', sub: `${fmt(a.nDan)} boletas · ${fmt(conOTC)} de ${fmt(dm.size)} equipos con OTC de reparación · ${fmt(sinFinca)} boletas sin finca` }
-    ];
-    $('q-kpis').innerHTML = tiles.map(x => `<div class="kpi"><div class="lbl">${x.lbl}</div><div class="val num">${x.val}${x.unit ? `<small>${x.unit}</small>` : ''}</div><div class="sub">${x.sub}</div></div>`).join('');
-
-    const dl = [...dm.entries()].sort((x, y) => y[1].last.localeCompare(x[1].last));
-    const otcCell = c => {
-      if (!c) return '<span class="pill warn">! Sin OTC de reparación</span>';
-      const pill = c[3] === 'Completada' ? '<span class="pill good">✓ Completada</span>' : `<span class="pill neutral">${esc(c[3] || 'Sin estado')}</span>`;
-      return `<div>${linkHtml('otc', c[4], esc(c[2] || 'OTC'))} <span class="muted" style="white-space:nowrap">· creada ${fmtDay(c[1])}</span></div><div style="margin-top:3px">${pill}</div>`;
-    };
-    $('q-danados').innerHTML = `<thead><tr><th>Equipo</th><th>Finca</th><th class="r">Boletas</th><th>Último reporte</th><th>OTC de reparación</th></tr></thead><tbody>` +
-      (dl.map(([i, o]) => { const e = S.data.equipos[i]; return `<tr class="click" data-eq="${i}" tabindex="0"><td><b>${esc(e.codigo)}</b> <span class="muted">${esc(e.modelo)}</span></td>
-        <td>${esc(S.data.fincas[o.finca])}</td><td class="r num">${fmt(o.n)}</td><td>${fmtDayY(o.last)}</td>
-        <td style="white-space:normal">${otcCell(o.otc)}</td></tr>`; }).join('') ||
-        '<tr><td colspan="5" class="empty">Ningún horómetro reportado como dañado en el período</td></tr>') + '</tbody>';
-
-    // Despachadores.
-    const dsp = groupBy(rows.filter(r => r[3] >= 0), r => r[3]);
-    const fincaOf = new Map();
-    rows.forEach(r => { if (r[3] < 0) return; if (!fincaOf.has(r[3])) fincaOf.set(r[3], {}); const o = fincaOf.get(r[3]); o[r[2]] = (o[r[2]] || 0) + 1; });
-    const dsl = [...dsp.entries()].sort((x, y) => y[1].L - x[1].L);
-    const sinDesp = rows.filter(r => r[3] < 0).length;
-    $('q-desp').innerHTML = `<thead><tr><th>Despachador</th><th>Finca principal</th><th class="r">Boletas</th><th class="r">Litros</th><th class="r">Errores de lectura</th></tr></thead><tbody>` +
-      dsl.map(([i, a]) => { const fo = Object.entries(fincaOf.get(i)).sort((x, y) => y[1] - x[1])[0][0];
-        const rate = a.nErr / a.n * 100;
-        return `<tr><td>${esc(S.data.despachadores[i])}</td><td>${esc(S.data.fincas[fo])}</td><td class="r num">${fmt(a.n)}</td><td class="r num">${fmt(a.L)}</td>
-        <td class="r">${a.nErr ? `<span class="${rate >= 3 ? 'pill warn' : 'num'}">${fmt(a.nErr)} (${fmt(rate, 1)}%)</span>` : '<span class="muted">0</span>'}</td></tr>`; }).join('') +
-      (sinDesp ? `<tr><td class="muted">Sin despachador registrado</td><td></td><td class="r num">${fmt(sinDesp)}</td><td></td><td></td></tr>` : '') + '</tbody>';
-
-    // Boletas atípicas.
-    const at = rows.filter(r => {
-      if (r[7] & ERR || r[5] <= 0) return false;
-      const m = S.data.equipos[r[1]].media;
-      return r[5] > 200 || (m && r[4] / r[5] > 3 * m);
-    }).sort((x, y) => (y[6] - x[6]) || (y[5] - x[5])).slice(0, 20);
-    $('q-atipicas').innerHTML = `<thead><tr><th>Fecha</th><th>Equipo</th><th>Finca</th><th class="r">Litros</th><th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Media equipo</th><th>Motivo</th><th></th></tr></thead><tbody>` +
-      (at.map(r => { const e = S.data.equipos[r[1]], v = r[4] / r[5];
-        const why = r[5] > 200 ? 'Más de 200 h desde la carga anterior' : `${fmt(v / e.media, 1)}× la media del equipo`;
-        return `<tr><td>${fmtDayY(r[0])}</td><td><b>${esc(e.codigo)}</b> <span class="muted">${esc(e.modelo)}</span></td><td>${esc(S.data.fincas[r[2]])}</td>
-          <td class="r num">${fmt(r[4], 1)}</td><td class="r num">${fmt(r[5], 1)}</td><td class="r num">${fmt(v, 2)}</td><td class="r num muted">${fmt(e.media, 1)}</td>
-          <td><span class="pill warn">${why}</span></td><td>${linkHtml('boleta', r[8], 'Ver boleta')}</td></tr>`; }).join('') ||
-        '<tr><td colspan="9" class="empty">Sin boletas atípicas en el período</td></tr>') + '</tbody>';
-  }
-
-  function renderFooter() {
-    const D = S.data, p = D.params;
-    $('footer').innerHTML = `
-      <p><b>Fuente:</b> ${esc(D.metadata.fuente)} · ${fmt(D.metadata.totalRegistros)} boletas desde el ${fmtDayY(D.metadata.fechaMin)}.</p>
-      <p><b>Lt/Hr</b> = litros ÷ horas trabajadas, sumando solo boletas con horas &gt; 0 y sin error de lectura. Las horas son las transcurridas desde la carga anterior del equipo.</p>
-      <p><b>Exceso</b> = campo "Total Litros Desv &gt; 10%" de Airtable: litros por encima de la media histórica del equipo en boletas con desviación mayor al 10%. <b>Costo</b> = litros × ₡${fmt(p.precioDieselCRC)} ÷ TC ₡${fmt(p.tipoCambio)} = US$${fmt(p.precioDieselUSD, 2)}/L.</p>`;
-  }
-
-  // ---------- Eventos ----------
-  function setFilter(k, v) {
-    S.f[k] = v;
-    // Al cambiar un nivel superior, limpiar los inferiores que ya no apliquen.
-    fillFilterOptions();
-    for (const kk of ['tipo', 'marca', 'modelo']) {
-      if (S.f[kk] && ![...$('f-' + kk).options].some(o => o.value === S.f[kk])) S.f[kk] = '';
-    }
-    fillFilterOptions();
-    renderAll();
-  }
-  document.querySelectorAll('#gran-seg button').forEach(b => b.addEventListener('click', () => {
-    S.gran = b.dataset.g;
-    // Mantener la fecha ancla: al pasar de mes a semana se elige la última semana con datos dentro de ese mes.
-    const p = periodOf(S.gran, S.periodKeyDate);
-    const inside = S.data.rows.filter(r => r[0] >= p.start && r[0] <= p.end);
-    if (inside.length) S.periodKeyDate = inside[inside.length - 1][0];
-    fillFilterOptions(); renderAll();
-  }));
-  $('f-period').addEventListener('change', e => { S.periodKeyDate = e.target.value; renderAll(); });
-  ['finca', 'tipo', 'marca', 'modelo'].forEach(k => $('f-' + k).addEventListener('change', e => setFilter(k, e.target.value)));
-  $('clear-btn').addEventListener('click', () => { S.f = { finca: '', tipo: '', marca: '', modelo: '' }; fillFilterOptions(); renderAll(); });
-  document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => {
-    S.tab = b.dataset.tab;
-    document.querySelectorAll('nav.tabs button').forEach(x => x.classList.toggle('on', x === b));
-    ['resumen', 'equipos', 'calidad'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== S.tab));
-    renderAll();
-  }));
-  document.addEventListener('click', e => {
-    const fk = e.target.closest('[data-fk]');
-    if (fk) { const k = fk.dataset.fk, v = fk.dataset.fv; setFilter(k, S.f[k] === v ? '' : v); return; }
-    const eq = e.target.closest('tr[data-eq]');
-    if (eq && !e.target.closest('a')) openEquipo(+eq.dataset.eq);
-  });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
-    if (e.key === 'Enter') { const t = e.target.closest('[data-fk], tr[data-eq]'); if (t) t.click(); }
-  });
-  // Buscador del comparador: aplica al elegir un modelo de la lista; si el texto no es un modelo, vuelve al anterior.
-  function pickCmp(el, final) {
-    const k = el.dataset.cmp === 'A' ? 'cmpA' : 'cmpB';
-    const v = el.value.trim();
-    const match = S.cmpKeys && (S.cmpKeys.has(v) ? v : [...S.cmpKeys.keys()].find(x => x.toLowerCase() === v.toLowerCase()));
-    if (match) { if (match !== S[k]) { S[k] = match; renderComparator(); } }
-    else if (final) el.value = S[k];
-  }
-  document.addEventListener('input', e => { const el = e.target.closest('input[data-cmp]'); if (el) pickCmp(el, false); });
-  document.addEventListener('change', e => { const el = e.target.closest('input[data-cmp]'); if (el) pickCmp(el, true); });
-  document.addEventListener('focusin', e => { const el = e.target.closest('input[data-cmp]'); if (el) el.select(); });
-  $('eq-sort').addEventListener('change', e => { S.eqSort = e.target.value; renderAll(); });
-  $('eq-limit').addEventListener('change', e => { S.eqLimit = +e.target.value; renderAll(); });
-  $('eq-search').addEventListener('input', e => { S.eqSearch = e.target.value; renderAll(); });
-  $('m-close').addEventListener('click', closeModal);
-  $('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
-
-  function applyTheme(t) {
-    document.documentElement.dataset.theme = t;
-    $('theme-btn').textContent = t === 'light' ? 'Tema oscuro' : 'Tema claro';
-    try { localStorage.setItem('combustible-tema', t); } catch (_) {}
-    chartDefaults();
-    if (S.data) renderAll();
-  }
-  $('theme-btn').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
-
-  let savedTheme = 'dark';
-  try { savedTheme = localStorage.getItem('combustible-tema') || 'dark'; } catch (_) {}
-  applyTheme(savedTheme);
-  load(true);
-  // Recarga silenciosa: los datos se refrescan cada 3 h; revisar cada 15 min si hay nuevos.
-  setInterval(() => load(false), 15 * 60 * 1000);
+    // Startup
+    loadData();
   </script>
 </body>
 </html>
