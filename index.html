@@ -113,6 +113,7 @@
     .kpi .val { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 6px 0 2px; }
     .kpi .val small { font-size: 14px; font-weight: 500; color: var(--text-3); margin-left: 4px; }
     .kpi .sub { font-size: 12.5px; color: var(--text-2); }
+    .kpis.k5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .kpi .delta { margin-top: 8px; font-size: 12.5px; color: var(--text-3); }
 
     .delta-good { color: var(--good); font-weight: 600; }
@@ -184,7 +185,7 @@
     .modal-head h3 { margin: 0; font-size: 19px; }
     .modal-head p { margin: 2px 0 0; color: var(--text-3); font-size: 13px; }
     .modal-head .icon-btn { margin-left: auto; }
-    .mini-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+    .mini-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
     .mini-kpis div { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
     .mini-kpis span { display: block; font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
     .mini-kpis b { font-size: 18px; }
@@ -195,14 +196,14 @@
     .empty { color: var(--text-3); padding: 18px 0; text-align: center; }
 
     @media (max-width: 1100px) {
-      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .kpis, .kpis.k5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .grid-3 { grid-template-columns: 1fr; }
       .mini-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 760px) {
       .wrap { padding: 0 16px; }
       .grid-2 { grid-template-columns: 1fr; }
-      .kpis { grid-template-columns: 1fr; }
+      .kpis, .kpis.k5 { grid-template-columns: 1fr; }
       .cmp { grid-template-columns: 1fr; }
       .rank-row { grid-template-columns: minmax(0, 1fr) 52px 70px; }
       .rank-row > :nth-child(4) { display: none; }
@@ -257,7 +258,7 @@
 
     <!-- RESUMEN -->
     <section id="tab-resumen">
-      <div class="kpis" id="kpis"></div>
+      <div class="kpis k5" id="kpis"></div>
 
       <div class="grid-2">
         <div class="panel">
@@ -303,7 +304,7 @@
             <select id="eq-sort" aria-label="Ordenar por">
               <option value="litros">Ordenar: litros</option>
               <option value="exceso">Ordenar: exceso US$</option>
-              <option value="desv">Ordenar: desviación vs su media</option>
+              <option value="desv">Ordenar: desviación vs su mediana</option>
             </select>
             <select id="eq-limit" aria-label="Cantidad">
               <option value="10">Top 10</option>
@@ -360,7 +361,7 @@
       </div>
       <div class="panel full">
         <h2>Boletas para revisar</h2>
-        <p class="desc">Boletas cuyo Lt/Hr es más del triple de la media del equipo, o con más de 200 horas desde la carga anterior. Enlace directo al registro.</p>
+        <p class="desc">Boletas cuyo Lt/Hr es más del triple de la mediana del equipo, o con más de 200 horas desde la carga anterior. Enlace directo al registro.</p>
         <div class="table-wrap"><table id="q-atipicas"></table></div>
       </div>
     </section>
@@ -375,7 +376,7 @@
         <button class="icon-btn" type="button" id="m-close">Cerrar</button>
       </div>
       <div class="mini-kpis" id="m-kpis"></div>
-      <h2 style="font-size:14px;margin:0 0 6px;">Lt/Hr por mes vs media histórica del equipo</h2>
+      <h2 style="font-size:14px;margin:0 0 6px;">Lt/Hr por mes vs mediana del equipo</h2>
       <div class="chart-box short"><canvas id="ch-equipo"></canvas></div>
       <h2 style="font-size:14px;margin:16px 0 6px;">Últimas boletas del período</h2>
       <div class="table-wrap"><table id="m-boletas"></table></div>
@@ -535,6 +536,7 @@
       if (!initial && !forceRefresh && S.data && data.metadata.generatedAt === S.data.metadata.generatedAt) { renderSync(); return; }
       S.data = data;
       computePartialMonths();
+      computeMedianas();
       if (initial) pickDefaultPeriod();
       fillFilterOptions();
       renderAll();
@@ -548,6 +550,29 @@
         reloadBtn.textContent = 'Actualizar';
         reloadBtn.style.opacity = '1';
       }
+    }
+  }
+
+  // Mediana por equipo del Lt/Hr de cada boleta válida (horas > 0, sin error de lectura, litros > 0).
+  // Reemplaza a la media histórica de Airtable como referencia de desviación y exceso:
+  //   exceso de la boleta = litros − mediana × horas, solo si su Lt/Hr supera la mediana en más de 10%.
+  // Con menos de 3 boletas válidas no hay mediana confiable: sin referencia, sin exceso.
+  function medianOf(v) {
+    if (!v.length) return null;
+    const s = v.slice().sort((a, b) => a - b), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  function computeMedianas() {
+    const D = S.data, vals = D.equipos.map(() => []);
+    for (const r of D.rows) if (!(r[7] & ERR) && r[5] > 0 && r[4] > 0) vals[r[1]].push(r[4] / r[5]);
+    D.equipos.forEach((e, i) => {
+      if (e.mediaAirtable === undefined) e.mediaAirtable = e.media;
+      e.nValidas = vals[i].length;
+      e.media = vals[i].length >= 3 ? medianOf(vals[i]) : null;  // e.media ahora = mediana
+    });
+    for (const r of D.rows) {
+      const m = D.equipos[r[1]].media;
+      r[6] = (m && !(r[7] & ERR) && r[5] > 0 && r[4] / r[5] > m * 1.1) ? Math.round((r[4] - m * r[5]) * 10) / 10 : 0;
     }
   }
 
@@ -664,14 +689,21 @@
     return `<span class="${cls}">${arrow} ${fmt(Math.abs(d), 1)}%${word}</span> vs ${esc(vsLabel)}`;
   }
 
+  function medianBoletas(rows) {
+    const v = [];
+    for (const r of rows) if (!(r[7] & ERR) && r[5] > 0 && r[4] > 0) v.push(r[4] / r[5]);
+    return medianOf(v);
+  }
+
   function renderResumen(P) {
     const c = total(S.curRows), p = total(S.prevRows), pr = price();
     const vs = rangeLabel(P.prev);
     const k = [
       { lbl: 'Diésel despachado', val: fmt(c.L), unit: 'L', sub: `${fmt(c.n)} boletas · ${fmt(c.eq.size)} equipos`, d: deltaHtml(c.L, p.L, 'volume', vs) },
       { lbl: 'Costo del diésel', val: usd(c.L * pr), unit: '', sub: `A ₡${fmt(S.data.params.precioDieselCRC)}/L y TC ₡${fmt(S.data.params.tipoCambio)}`, d: deltaHtml(c.L, p.L, 'volume', vs) },
-      { lbl: 'Eficiencia', val: fmt(lthr(c), 2), unit: 'Lt/Hr', sub: `${fmt(c.Hv)} horas trabajadas válidas`, d: deltaHtml(lthr(c), lthr(p), 'ratio', vs) },
-      { lbl: 'Exceso sobre media histórica', val: usd(c.ex * pr), unit: '', sub: `${fmt(c.ex)} L en boletas con desviación >10%`, d: deltaHtml(c.ex, p.ex, 'cost', vs) }
+      { lbl: 'Eficiencia (promedio)', val: fmt(lthr(c), 2), unit: 'Lt/Hr', sub: `${fmt(c.Hv)} horas trabajadas válidas`, d: deltaHtml(lthr(c), lthr(p), 'ratio', vs) },
+      { lbl: 'Mediana Lt/Hr', val: fmt(medianBoletas(S.curRows), 2), unit: 'Lt/Hr', sub: 'Mediana del Lt/Hr por boleta; menos sensible a boletas atípicas', d: deltaHtml(medianBoletas(S.curRows), medianBoletas(S.prevRows), 'ratio', vs) },
+      { lbl: 'Exceso sobre la mediana', val: usd(c.ex * pr), unit: '', sub: `${fmt(c.ex)} L en boletas con desviación >10%`, d: deltaHtml(c.ex, p.ex, 'cost', vs) }
     ];
     $('kpis').innerHTML = k.map(x => `
       <div class="kpi">
@@ -816,7 +848,7 @@
     list.sort(sorters[S.eqSort]);
     const shown = list.slice(0, S.eqLimit);
     const head = `<thead><tr><th>#</th><th>Equipo</th><th>Tipo</th><th>Finca principal</th><th>Labor</th>
-      <th class="r">Litros</th><th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Media hist.</th>
+      <th class="r">Litros</th><th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Media hist.</th><th class="r">Mediana</th>
       <th class="r">Desviación</th><th class="r">Lt/Hr vs ant.</th><th class="r">Exceso</th></tr></thead>`;
     const body = shown.map((s, n) => {
       const ps = prevStats.get(s.i);
@@ -832,11 +864,11 @@
         <td><b>${esc(s.e.codigo)}</b> <span class="muted">${esc(s.e.marca)} ${esc(s.e.modelo)}</span></td>
         <td>${esc(s.e.tipo)}</td><td>${esc(s.finca)}</td><td>${esc(s.e.labor)}</td>
         <td class="r num">${fmt(s.a.L)}</td><td class="r num">${fmt(s.a.Hv)}</td>
-        <td class="r num"><b>${fmt(s.lthr, 2)}</b></td><td class="r num muted">${fmt(s.e.media, 1)}</td>
+        <td class="r num"><b>${fmt(s.lthr, 2)}</b></td><td class="r num muted">${s.e.mediaAirtable ? fmt(s.e.mediaAirtable, 2) : '—'}</td><td class="r num"><b>${s.e.media ? fmt(s.e.media, 2) : '—'}</b></td>
         <td class="r">${desvPill}</td><td class="r num">${dh}</td>
         <td class="r num">${usd(s.exUSD)}</td></tr>`;
     }).join('');
-    $('eq-table').innerHTML = head + `<tbody>${body || '<tr><td colspan="12" class="empty">Sin equipos para estos filtros</td></tr>'}</tbody>`;
+    $('eq-table').innerHTML = head + `<tbody>${body || '<tr><td colspan="13" class="empty">Sin equipos para estos filtros</td></tr>'}</tbody>`;
 
     renderPareto(stats);
     renderComparator();
@@ -963,7 +995,7 @@
     const v = lthr(a);
     $('m-kpis').innerHTML = [
       ['Litros', fmt(a.L)], ['Horas válidas', fmt(a.Hv)], ['Lt/Hr', fmt(v, 2)],
-      ['Media histórica', fmt(e.media, 1)], ['Exceso', usd(a.ex * price())]
+      ['Media hist.', e.mediaAirtable ? fmt(e.mediaAirtable, 2) : '—'], ['Mediana', e.media ? fmt(e.media, 2) : '—'], ['Exceso', usd(a.ex * price())]
     ].map(([l, x]) => `<div><span>${l}</span><b class="num">${x}</b></div>`).join('');
 
     // Serie mensual completa del equipo (todas las fechas) para ver tendencia.
@@ -977,7 +1009,8 @@
       data: { labels: keys.map(k => MES[+k.slice(5) - 1] + ' ' + k.slice(2, 4)), datasets: [
         { label: 'Lt/Hr del mes', data: keys.map(k => { const x = lthr(mm.get(k)); return x == null ? null : +x.toFixed(2); }),
           borderColor: line, backgroundColor: line, borderWidth: 2, pointRadius: 4, pointHitRadius: 12, tension: 0.2, spanGaps: true },
-        { label: 'Media histórica', data: keys.map(() => e.media), borderColor: ref, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 }
+        { label: 'Mediana', data: keys.map(() => e.media), borderColor: ref, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 },
+        { label: 'Media histórica', data: keys.map(() => e.mediaAirtable || null), borderColor: ref, borderDash: [1, 4], borderWidth: 1, pointRadius: 0 }
       ] },
       options: { maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
         plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 14, boxHeight: 2 } } },
@@ -1064,9 +1097,9 @@
       const m = S.data.equipos[r[1]].media;
       return r[5] > 200 || (m && r[4] / r[5] > 3 * m);
     }).sort((x, y) => (y[6] - x[6]) || (y[5] - x[5])).slice(0, 20);
-    $('q-atipicas').innerHTML = `<thead><tr><th>Fecha</th><th>Equipo</th><th>Finca</th><th class="r">Litros</th><th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Media equipo</th><th>Motivo</th><th></th></tr></thead><tbody>` +
+    $('q-atipicas').innerHTML = `<thead><tr><th>Fecha</th><th>Equipo</th><th>Finca</th><th class="r">Litros</th><th class="r">Horas</th><th class="r">Lt/Hr</th><th class="r">Mediana equipo</th><th>Motivo</th><th></th></tr></thead><tbody>` +
       (at.map(r => { const e = S.data.equipos[r[1]], v = r[4] / r[5];
-        const why = r[5] > 200 ? 'Más de 200 h desde la carga anterior' : `${fmt(v / e.media, 1)}× la media del equipo`;
+        const why = r[5] > 200 ? 'Más de 200 h desde la carga anterior' : `${fmt(v / e.media, 1)}× la mediana del equipo`;
         return `<tr><td>${fmtDayY(r[0])}</td><td><b>${esc(e.codigo)}</b> <span class="muted">${esc(e.modelo)}</span></td><td>${esc(S.data.fincas[r[2]])}</td>
           <td class="r num">${fmt(r[4], 1)}</td><td class="r num">${fmt(r[5], 1)}</td><td class="r num">${fmt(v, 2)}</td><td class="r num muted">${fmt(e.media, 1)}</td>
           <td><span class="pill warn">${why}</span></td><td>${linkHtml('boleta', r[8], 'Ver boleta')}</td></tr>`; }).join('') ||
@@ -1078,7 +1111,7 @@
     $('footer').innerHTML = `
       <p><b>Fuente:</b> ${esc(D.metadata.fuente)} · ${fmt(D.metadata.totalRegistros)} boletas desde el ${fmtDayY(D.metadata.fechaMin)}.</p>
       <p><b>Lt/Hr</b> = litros ÷ horas trabajadas, sumando solo boletas con horas &gt; 0 y sin error de lectura. Las horas son las transcurridas desde la carga anterior del equipo.</p>
-      <p><b>Exceso</b> = campo "Total Litros Desv &gt; 10%" de Airtable: litros por encima de la media histórica del equipo en boletas con desviación mayor al 10%. <b>Costo</b> = litros × ₡${fmt(p.precioDieselCRC)} ÷ TC ₡${fmt(p.tipoCambio)} = US$${fmt(p.precioDieselUSD, 2)}/L.</p>`;
+      <p><b>Mediana</b> = mediana del Lt/Hr de las boletas válidas de cada equipo (mínimo 3). <b>Desviación</b> = Lt/Hr ÷ mediana − 1. <b>Exceso</b> = litros − mediana × horas, en boletas cuyo Lt/Hr supera la mediana en más de 10%. <b>Costo</b> = litros × ₡${fmt(p.precioDieselCRC)} ÷ TC ₡${fmt(p.tipoCambio)} = US$${fmt(p.precioDieselUSD, 2)}/L.</p>`;
   }
 
   // ---------- Eventos ----------
