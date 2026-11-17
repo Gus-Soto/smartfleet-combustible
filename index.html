@@ -238,6 +238,7 @@
       </div>
       <select id="f-period" aria-label="Período"></select>
       <div class="field"><label for="f-finca">Finca</label><select id="f-finca"></select></div>
+      <div class="field"><label for="f-labor">Labor</label><select id="f-labor"></select></div>
       <div class="field"><label for="f-tipo">Tipo</label><select id="f-tipo"></select></div>
       <div class="field"><label for="f-marca">Marca</label><select id="f-marca"></select></div>
       <div class="field"><label for="f-modelo">Modelo</label><select id="f-modelo"></select></div>
@@ -389,7 +390,7 @@
   // ---------- Estado ----------
   const S = {
     data: null, gran: 'month', periodKey: null, tab: 'resumen',
-    f: { finca: '', tipo: '', marca: '', modelo: '' },
+    f: { finca: '', labor: '', tipo: '', marca: '', modelo: '' },
     eqSort: 'litros', eqLimit: 10, eqSearch: '',
     cmpA: null, cmpB: null, charts: {}, partialMonths: new Set()
   };
@@ -467,6 +468,7 @@
   function dimMatch(r) {
     const e = S.data.equipos[r[1]], f = S.f;
     if (f.finca !== '' && S.data.fincas[r[2]] !== f.finca) return false;
+    if (f.labor && e.labor !== f.labor) return false;
     if (f.tipo && e.tipo !== f.tipo) return false;
     if (f.marca && e.marca !== f.marca) return false;
     if (f.modelo && e.modelo !== f.modelo) return false;
@@ -618,14 +620,16 @@
     const usedEq = new Set(D.rows.filter(r => S.f.finca === '' || D.fincas[r[2]] === S.f.finca).map(r => r[1]));
     const pool = [...usedEq].map(i => eqs[i]);
     const uniq = (arr) => [...new Set(arr)].sort((a, b) => a.localeCompare(b, 'es'));
-    const tipos = uniq(pool.filter(e => (!S.f.marca || e.marca === S.f.marca) && (!S.f.modelo || e.modelo === S.f.modelo)).map(e => e.tipo));
-    const marcas = uniq(pool.filter(e => (!S.f.tipo || e.tipo === S.f.tipo) && (!S.f.modelo || e.modelo === S.f.modelo)).map(e => e.marca));
-    const modelos = uniq(pool.filter(e => (!S.f.tipo || e.tipo === S.f.tipo) && (!S.f.marca || e.marca === S.f.marca)).map(e => e.modelo));
+    const tipos = uniq(pool.filter(e => (!S.f.labor || e.labor === S.f.labor) && (!S.f.marca || e.marca === S.f.marca) && (!S.f.modelo || e.modelo === S.f.modelo)).map(e => e.tipo));
+    const marcas = uniq(pool.filter(e => (!S.f.labor || e.labor === S.f.labor) && (!S.f.tipo || e.tipo === S.f.tipo) && (!S.f.modelo || e.modelo === S.f.modelo)).map(e => e.marca));
+    const modelos = uniq(pool.filter(e => (!S.f.labor || e.labor === S.f.labor) && (!S.f.tipo || e.tipo === S.f.tipo) && (!S.f.marca || e.marca === S.f.marca)).map(e => e.modelo));
+    const labores = uniq(pool.filter(e => (!S.f.tipo || e.tipo === S.f.tipo) && (!S.f.marca || e.marca === S.f.marca) && (!S.f.modelo || e.modelo === S.f.modelo)).map(e => e.labor));
     const fincas = uniq(D.fincas);
     const fill = (id, list, val, all) => {
       $(id).innerHTML = `<option value="">${all}</option>` + list.map(v => `<option ${v === val ? 'selected' : ''}>${esc(v)}</option>`).join('');
     };
     fill('f-finca', fincas, S.f.finca, 'Todas');
+    fill('f-labor', labores, S.f.labor, 'Todas');
     fill('f-tipo', tipos, S.f.tipo, 'Todos');
     fill('f-marca', marcas, S.f.marca, 'Todas');
     fill('f-modelo', modelos, S.f.modelo, 'Todos');
@@ -716,7 +720,7 @@
     renderTrend(P);
     renderRank('rank-finca', r => S.data.fincas[r[2]], 'finca');
     renderRank('rank-tipo', r => S.data.equipos[r[1]].tipo, 'tipo');
-    renderRank('rank-labor', r => S.data.equipos[r[1]].labor, null);
+    renderRank('rank-labor', r => S.data.equipos[r[1]].labor, 'labor');
   }
 
   function renderRank(el, keyFn, filterKey) {
@@ -1119,7 +1123,7 @@
     S.f[k] = v;
     // Al cambiar un nivel superior, limpiar los inferiores que ya no apliquen.
     fillFilterOptions();
-    for (const kk of ['tipo', 'marca', 'modelo']) {
+    for (const kk of ['labor', 'tipo', 'marca', 'modelo']) {
       if (S.f[kk] && ![...$('f-' + kk).options].some(o => o.value === S.f[kk])) S.f[kk] = '';
     }
     fillFilterOptions();
@@ -1134,8 +1138,8 @@
     fillFilterOptions(); renderAll();
   }));
   $('f-period').addEventListener('change', e => { S.periodKeyDate = e.target.value; renderAll(); });
-  ['finca', 'tipo', 'marca', 'modelo'].forEach(k => $('f-' + k).addEventListener('change', e => setFilter(k, e.target.value)));
-  $('clear-btn').addEventListener('click', () => { S.f = { finca: '', tipo: '', marca: '', modelo: '' }; fillFilterOptions(); renderAll(); });
+  ['finca', 'labor', 'tipo', 'marca', 'modelo'].forEach(k => $('f-' + k).addEventListener('change', e => setFilter(k, e.target.value)));
+  $('clear-btn').addEventListener('click', () => { S.f = { finca: '', labor: '', tipo: '', marca: '', modelo: '' }; fillFilterOptions(); renderAll(); });
   document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => {
     S.tab = b.dataset.tab;
     document.querySelectorAll('nav.tabs button').forEach(x => x.classList.toggle('on', x === b));
